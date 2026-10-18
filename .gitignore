@@ -1,0 +1,15 @@
+.gradle/
+build/
+**/build/
+.kotlin/
+*.iml
+.idea/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+.DS_Store
+*.log
+TODO.md
+victim/
+README_internal.md

@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">LoneFuzz</string>
+
+    <string name="btn_refresh">一覧を更新</string>
+    <string name="label_recipes">アタックレシピ</string>
+    <string name="label_targets">対象アプリ (exported コンポーネントあり)</string>
+    <string name="search_hint">アプリ名 / パッケージ名で検索</string>
+
+    <string name="btn_shot">SHOT</string>
+    <string name="btn_fire">連射（押している間）</string>
+    <string name="btn_scan">SPRAY</string>
+    <string name="btn_scan_stop">STOP</string>
+    <string name="btn_burst">BURST</string>
+    <string name="btn_burst_stop">STOP</string>
+
+    <string name="legend_actions">SPRAY=選択対象を総当たり ／ BURST=穴を止めるまで連射 ／ SHOT=1回だけ ／ 各ボタン長押しで説明</string>
+
+    <string name="tip_spray">選択した対象アプリに、コンポーネント×レシピを総当たりで撃ち、落ちる穴を探す</string>
+    <string name="tip_burst">spray で確定した有効なペイロードを、止めるまで連射し続ける</string>
+    <string name="tip_shot">選択中の対象に 1 回だけ撃つ（目視確認用）</string>
+
+    <string name="detector_off">検知 OFF（タップで有効化）</string>
+    <string name="dump_off">DUMP OFF（タップで付与）</string>
+
+    <string name="label_log">▸ ログ（タップで開閉・長押しで結果コピー）</string>
+    <string name="log_cleared">--- ログ ---</string>
+
+    <string name="accessibility_service_description">クラッシュ/ANR ダイアログの出現を自動検知し、どのレシピが対象アプリを落としたかを記録します。</string>
+</resources>

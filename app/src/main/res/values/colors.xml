@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ダークベース + 空色アクセント -->
+    <color name="bg">#FF0E1014</color>
+    <color name="surface">#FF1B1E26</color>
+    <color name="surface_high">#FF232733</color>
+    <color name="accent">#FF4FC3F7</color>
+    <color name="accent_dark">#FF0288D1</color>
+    <color name="accent_dim">#FF7FB6CE</color>
+    <color name="on_accent">#FF08131A</color>
+    <color name="on_surface">#FFE6E9EF</color>
+    <color name="on_surface_dim">#FF9AA3B2</color>
+    <color name="bad">#FFFF5252</color>
+
+    <!-- 無効状態は色味を残さずグレー（「使えない」を明確に） -->
+    <color name="btn_disabled_bg">#FF2A2E36</color>
+    <color name="btn_disabled_fg">#FF6B7280</color>
+</resources>

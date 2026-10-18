@@ -1,0 +1,416 @@
+package io.github.azaberrypi.lonefuzz
+
+import android.app.Activity
+import android.app.ActivityManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import io.github.azaberrypi.lonefuzz.model.ComponentKind
+import io.github.azaberrypi.lonefuzz.model.TargetComponent
+import java.util.ArrayDeque
+
+class ScanEngine(private val activity: Activity) {
+
+    /**
+     * HIT の確からしさ。
+     * - CONFIRMED: 対象プロセスのクラッシュ死を観測（ApplicationExitInfo の
+     *   REASON_CRASH、または Accessibility のクラッシュ/ANR ダイアログ）。信頼できる。
+     * - SUSPECTED: 即戻りのみ（対象 Activity が <1.5s で消えた）。トランポリンや自己 finish との
+     *   区別がつかないため、レポートでは要再現確認。
+     * - NONE: 非 HIT。
+     */
+    enum class HitConfidence { CONFIRMED, SUSPECTED, NONE }
+
+    data class Result(
+        val appLabel: String,
+        val packageName: String,
+        val component: String,
+        val className: String,
+        val appVersion: String,
+        val recipeType: RecipeType,
+        val recipe: String,
+        val hit: Boolean,
+        val confidence: HitConfidence = HitConfidence.NONE,
+    )
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    private val results = mutableListOf<Result>()
+    private val queue = ArrayDeque<Pair<TargetComponent, RecipeType>>()
+    private var current: Pair<TargetComponent, RecipeType>? = null
+    private var fireTime = 0L
+    private var totalCount = 0
+
+    @Volatile
+    var scanning = false
+        private set
+
+    var bursting = false
+        private set
+    private var cycleCount = 0
+    private var burstHits = emptyList<Pair<TargetComponent, RecipeType>>()
+
+    var onProgress: ((done: Int, total: Int, hits: Int) -> Unit)? = null
+    var onHit: ((Result) -> Unit)? = null
+    var onComplete: ((List<Result>) -> Unit)? = null
+    var onCycleComplete: ((cycle: Int) -> Unit)? = null
+
+    /** 発射/結果の逐次ログ（何に対してどのレシピを撃ち、どう判定したか＝証跡・デバッグ用）。 */
+    var onLog: ((String) -> Unit)? = null
+
+    /**
+     * BURST 中に「以前は効いていた HIT が連続で効かなくなった」時に呼ばれる（効果ベースの再適応）。
+     * 保存済みペイロードが対象アプリの仕様変更で死んだと判断し、呼び出し側が再探索（再spray）する。
+     */
+    var onStaleDetected: ((Result) -> Unit)? = null
+
+    /** BURST における HIT ごとの連続未命中回数（命中でリセット）。 */
+    private val burstMisses = HashMap<String, Int>()
+
+    /** spray モード: 全コンポーネント × レシピを1周スキャン */
+    fun start(components: List<TargetComponent>, recipes: List<RecipeType>) {
+        if (scanning) return
+        if (!CrashDetectorService.isRunning) {
+            onComplete?.invoke(emptyList())
+            return
+        }
+        scanning = true
+        bursting = false
+        results.clear()
+        queue.clear()
+        burstMisses.clear()
+
+        val activities = components.filter {
+            it.kind == ComponentKind.ACTIVITY && !isSystemPackage(it.packageName)
+        }
+        for (comp in activities) {
+            for (recipe in recipes) {
+                if (recipe == RecipeType.FOREGROUND_SERVICE_5S) continue
+                queue.addLast(comp to recipe)
+            }
+        }
+        totalCount = queue.size
+        if (totalCount == 0) {
+            scanning = false
+            onComplete?.invoke(emptyList())
+            return
+        }
+        fireNext()
+    }
+
+    /** BURST モード: 確定HITだけを繰り返し連射 */
+    fun startBurst(hits: List<Result>) {
+        if (scanning) return
+        if (!CrashDetectorService.isRunning) {
+            onComplete?.invoke(emptyList())
+            return
+        }
+        scanning = true
+        bursting = true
+        cycleCount = 0
+        results.clear()
+        queue.clear()
+        burstMisses.clear()
+
+        burstHits = hits.map { h ->
+            TargetComponent(
+                packageName = h.packageName,
+                className = h.className,
+                kind = ComponentKind.ACTIVITY,
+                appLabel = h.appLabel,
+                appVersion = h.appVersion,
+            ) to h.recipeType
+        }
+
+        refillBurstQueue()
+        totalCount = burstHits.size
+        if (totalCount == 0) {
+            scanning = false
+            bursting = false
+            onComplete?.invoke(emptyList())
+            return
+        }
+        fireNext()
+    }
+
+    private fun refillBurstQueue() {
+        for (pair in burstHits) {
+            queue.addLast(pair)
+        }
+    }
+
+    private fun fireNext() {
+        if (!scanning) {
+            finishRun()
+            return
+        }
+
+        if (queue.isEmpty()) {
+            if (bursting && scanning) {
+                cycleCount++
+                onCycleComplete?.invoke(cycleCount)
+                results.clear()
+                refillBurstQueue()
+                handler.postDelayed({ fireNext() }, 400)
+                return
+            }
+            finishRun()
+            return
+        }
+
+        // 前のテストで観測したクラッシュ/ANR ダイアログが残っていれば、次を撃つ前に閉じる。
+        // 残留ダイアログは次の対象を覆い隠し、検知を混線させる（一括sprayの取りこぼしの主因）。
+        if (CrashWatcher.consumeDialogPendingDismiss()) {
+            CrashDetectorService.pressBack()
+            handler.postDelayed({ fireNext() }, DIALOG_DISMISS_WAIT_MS)
+            return
+        }
+
+        val pair = queue.removeFirst()
+        current = pair
+        val (comp, recipe) = pair
+
+        try {
+            val intent = Intent().apply {
+                component = ComponentName(comp.packageName, comp.className)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            AttackRecipes.applyPayload(intent, recipe)
+
+            val shot = CrashWatcher.FiredShot(
+                comp.packageName, comp.appLabel, comp.shortName(), recipe.label,
+            )
+            CrashWatcher.recordFire(shot)
+            CrashWatcher.recordActivityFire(shot)
+
+            onLog?.invoke("[発射] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → ${comp.packageName}")
+            fireTime = System.currentTimeMillis()
+            activity.startActivity(intent)
+
+            handler.postDelayed(backPress, TIMEOUT_MS)
+        } catch (t: Throwable) {
+            onLog?.invoke("[発射失敗] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → ${t.javaClass.simpleName}")
+            results.add(
+                Result(
+                    comp.appLabel, comp.packageName, comp.shortName(), comp.className,
+                    comp.appVersion, recipe, recipe.label, hit = false,
+                    confidence = HitConfidence.NONE,
+                ),
+            )
+            reportProgress()
+            handler.post { fireNext() }
+        }
+    }
+
+    private fun finishRun() {
+        scanning = false
+        bursting = false
+        onComplete?.invoke(results.toList())
+    }
+
+    fun onResumed() {
+        if (!scanning) return
+        handler.removeCallbacks(backPress)
+
+        val pair = current ?: return
+        current = null
+        val (comp, recipe) = pair
+
+        // 3 系統の信号を統合して HIT と信頼度を決める:
+        //  - confirmed: 発火後にクラッシュ死を観測。ApplicationExitInfo(=REASON_CRASH, DUMP) を
+        //    第一とし、Accessibility のクラッシュ/ANR ダイアログも同格の確定ソースとする。
+        //  - rapidReturn: 対象 Activity が <1.5s で消え、こちらへ即戻った（補助信号）。
+        //  - usage: 上記どちらも無い場合、UsageStats で「発火後に対象が説明なく消えた」。
+        val elapsed = System.currentTimeMillis() - fireTime
+        val rapidReturn = elapsed < HIT_THRESHOLD_MS
+        CrashWatcher.checkRapidReturn() // lastActivityShot を消費（状態クリア用）
+
+        // onResume の時点では、クラッシュの確定証拠が **まだ届いていない**ことが多い
+        // （プロセス死の記録やダイアログの Accessibility イベントは数百ms遅れる）。
+        // ここで即断すると全部が「即戻り SUSPECTED」になり確定を取り損ねるため、
+        // 少し待ってから確定を再確認し、観測できていれば CONFIRMED に昇格する。
+        handler.postDelayed({
+            if (!scanning) return@postDelayed
+            val confirmed = CrashWatcher.exitCrashSince(activity, comp.packageName, fireTime) ||
+                CrashWatcher.confirmedCrashSince(comp.packageName, fireTime)
+            when {
+                confirmed ->
+                    resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
+
+                rapidReturn ->
+                    resolve(pair, hit = true, confidence = HitConfidence.SUSPECTED)
+
+                !CrashWatcher.hasUsageAccess(activity) ->
+                    resolve(pair, hit = false, confidence = HitConfidence.NONE)
+
+                else -> handler.postDelayed({
+                    if (!scanning) return@postDelayed
+                    val usage = CrashWatcher.usageDisappearedSince(comp.packageName, fireTime, activity)
+                    resolve(
+                        pair,
+                        hit = usage,
+                        confidence = if (usage) HitConfidence.SUSPECTED else HitConfidence.NONE,
+                    )
+                }, USAGE_VERIFY_DELAY_MS)
+            }
+        }, CONFIRM_WAIT_MS)
+    }
+
+    /** 1 テストの結果確定と締め切り処理（記録/通報/次の発火）。 */
+    private fun resolve(pair: Pair<TargetComponent, RecipeType>, hit: Boolean, confidence: HitConfidence) {
+        val (comp, recipe) = pair
+
+        val result = Result(
+            comp.appLabel, comp.packageName, comp.shortName(), comp.className,
+            comp.appVersion, recipe, recipe.label, hit, confidence,
+        )
+        results.add(result)
+        if (hit) onHit?.invoke(result)
+        val mark = when {
+            confidence == HitConfidence.CONFIRMED -> "確定(クラッシュ死)"
+            hit -> "疑い(即戻り/UsageStats)"
+            else -> "----"
+        }
+        onLog?.invoke("[結果] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → $mark")
+        reportProgress()
+
+        // BURST: 以前は効いた HIT が連続で効かなくなったら「効かなくなった」とみなす。
+        // ただし連射は止めない（「止めるまで継続」を厳守）。武器庫からの無効化＋ログのみ行い、
+        // 再探索は手動 spray に委ねる。カウンタは通知後にリセットして再通知を抑制する。
+        if (bursting) {
+            val k = missKey(comp, recipe)
+            if (hit) {
+                burstMisses[k] = 0
+            } else {
+                val miss = (burstMisses[k] ?: 0) + 1
+                if (miss >= MISS_THRESHOLD) {
+                    burstMisses[k] = 0
+                    onStaleDetected?.invoke(result)
+                } else {
+                    burstMisses[k] = miss
+                }
+            }
+        }
+
+        // spray モードではHIT時に同コンポーネントの残りレシピをスキップ
+        // BURST モードでは全て撃ち続ける
+        if (hit && !bursting) {
+            queue.removeAll { (c, _) -> c.packageName == comp.packageName && c.className == comp.className }
+        }
+
+        try { am.killBackgroundProcesses(comp.packageName) } catch (_: Throwable) {}
+
+        handler.postDelayed({ fireNext() }, 400)
+    }
+
+    private fun missKey(comp: TargetComponent, recipe: RecipeType) =
+        "${comp.packageName}|${comp.className}|${recipe.name}"
+
+    private val backPress = Runnable {
+        CrashDetectorService.goHomeAndReturn()
+    }
+
+    private fun reportProgress() {
+        val done = results.size
+        val hits = results.count { it.hit }
+        onProgress?.invoke(done, totalCount, hits)
+    }
+
+    fun stop() {
+        scanning = false
+        bursting = false
+        handler.removeCallbacksAndMessages(null)
+        current = null
+        queue.clear()
+        burstMisses.clear()
+    }
+
+    fun getHits(): List<Result> = results.filter { it.hit }
+
+    fun exportResults(): String {
+        val hits = results.filter { it.hit }
+        val confirmed = hits.filter { it.confidence == HitConfidence.CONFIRMED }
+        val suspected = hits.filter { it.confidence == HitConfidence.SUSPECTED }
+        val testedApps = results.map { it.packageName }.distinct()
+        val vulnApps = hits.map { it.packageName }.distinct()
+
+        return buildString {
+            appendLine("LoneFuzz スキャン結果")
+            appendLine("=======================")
+            appendLine("テスト数: ${results.size}")
+            appendLine("対象アプリ数: ${testedApps.size}")
+            appendLine("HIT: ${hits.size} (${vulnApps.size} アプリ)")
+            appendLine("  CONFIRMED(クラッシュ確定): ${confirmed.size}")
+            appendLine("  SUSPECTED(即戻り/UsageStats・要再現確認): ${suspected.size}")
+            appendLine()
+            if (hits.isNotEmpty()) {
+                appendLine("--- HIT 一覧（再現用）---")
+                var lastPkg = ""
+                for (h in hits) {
+                    if (h.packageName != lastPkg) {
+                        appendLine()
+                        appendLine("${h.appLabel} (${h.packageName}) v${h.appVersion}")
+                        lastPkg = h.packageName
+                    }
+                    val tag = if (h.confidence == HitConfidence.CONFIRMED) "CONFIRMED" else "SUSPECTED"
+                    appendLine("  → [$tag] ${h.className} [${h.recipe}]")
+                }
+                appendLine()
+            }
+            appendLine("--- 全結果 ---")
+            for (r in results) {
+                val mark = when {
+                    r.confidence == HitConfidence.CONFIRMED -> "HIT*"
+                    r.hit -> "HIT?"
+                    else -> "----"
+                }
+                appendLine("[$mark] ${r.appLabel} / ${r.component} [${r.recipe}]")
+            }
+            appendLine()
+            appendLine("凡例: HIT*=クラッシュ確定(crash死/dlg) / HIT?=即戻りのみ(要確認)")
+        }
+    }
+
+    companion object {
+        private const val TIMEOUT_MS = 3000L
+        private const val HIT_THRESHOLD_MS = 1500L
+
+        /** UsageStats の確認を遅らせる時間（usage event の記録遅延を吸収）。 */
+        private const val USAGE_VERIFY_DELAY_MS = 800L
+
+        /** onResume 後、クラッシュダイアログの観測を待つ猶予（これを経て CONFIRMED へ昇格）。 */
+        private const val CONFIRM_WAIT_MS = 700L
+
+        /** BURST で「効かなくなった」と判定する連続未命中のしきい値。 */
+        private const val MISS_THRESHOLD = 3
+
+        /** 残留クラッシュダイアログを閉じてから次を撃つまでの待ち。 */
+        private const val DIALOG_DISMISS_WAIT_MS = 500L
+
+        private val SKIP_PREFIXES = listOf(
+            "com.google.",
+            "com.android.",
+            "android",
+            "com.qualcomm.",
+            "com.samsung.",
+            "com.sec.",
+            "com.lge.",
+            "com.huawei.",
+            "com.oppo.",
+            "com.vivo.",
+            "com.xiaomi.",
+            "com.miui.",
+            "com.coloros.",
+            "com.oneplus.",
+            "com.motorola.",
+            "com.sonyericsson.",
+            "com.sony.",
+            "jp.co.sharp.",
+        )
+
+        fun isSystemPackage(pkg: String): Boolean =
+            SKIP_PREFIXES.any { pkg.startsWith(it) }
+    }
+}
