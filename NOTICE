@@ -36,6 +36,20 @@ Kotlin (JetBrains)
   https://github.com/Kotlin/kotlinx.coroutines
   https://github.com/JetBrains/java-annotations
 
+Error Prone Annotations
+  Included: com.google.errorprone:error_prone_annotations
+  Licensed under the Apache License, Version 2.0
+  Copyright (C) The Error Prone Authors
+  Modification: No
+  https://github.com/google/error-prone
+
+Guava (ListenableFuture only)
+  Included: com.google.guava:listenablefuture
+  Licensed under the Apache License, Version 2.0
+  Copyright (C) The Guava Authors
+  Modification: No
+  https://github.com/google/guava
+
 Build-only tools are not distributed in the application package and are
 therefore not listed above: the Android Gradle Plugin, Gradle, the Kotlin
 compiler, and the Android SDK build tools (all Apache License 2.0).
