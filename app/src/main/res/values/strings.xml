@@ -87,4 +87,12 @@
     <string name="log_shot_start">=== 単発 burst: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_shot_done">=== 単発 burst 完了 (sent=%1$d, err=%2$d) ===</string>
 
+    <!-- 実行中通知 -->
+    <string name="notif_channel_attack">攻撃実行</string>
+    <string name="notif_spray_title">LoneFuzz SPRAY 実行中</string>
+    <string name="notif_burst_title">LoneFuzz BURST 実行中</string>
+    <string name="notif_running_title">LoneFuzz 実行中</string>
+    <string name="notif_stop_hint">タップで停止</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="notif_action_open">開く</string>
 </resources>

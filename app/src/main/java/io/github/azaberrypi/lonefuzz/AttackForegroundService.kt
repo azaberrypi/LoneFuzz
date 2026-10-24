@@ -19,8 +19,15 @@ class AttackForegroundService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        createNotificationChannel()
-        val notification = buildNotification()
+        val mode = intent?.getStringExtra(EXTRA_MODE)
+        // Service の resources は端末言語のままなので、開始時のアプリ言語で解決する。
+        val locale = intent?.getStringExtra(EXTRA_LANG)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { java.util.Locale.forLanguageTag(it) }
+            ?: LogText.currentLocale(this)
+        val text = LogText(this, locale)
+        createNotificationChannel(text)
+        val notification = buildNotification(mode, text)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID, notification,
@@ -34,17 +41,18 @@ class AttackForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannel(text: LogText) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "攻撃実行", NotificationManager.IMPORTANCE_LOW,
+                CHANNEL_ID, text.get(R.string.notif_channel_attack),
+                NotificationManager.IMPORTANCE_LOW,
             )
             getSystemService(NotificationManager::class.java)
                 .createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(mode: String?, text: LogText): Notification {
         // 停止は BroadcastReceiver 経由（Activity の再生成に依存しない）。
         // 通知タップ＝停止、明示アクションも停止、別アクションでアプリを開く。
         val stopIntent = Intent(this, StopBurstReceiver::class.java).setAction(ACTION_STOP)
@@ -59,18 +67,33 @@ class AttackForegroundService : Service() {
             this, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val title = when (mode) {
+            MODE_SPRAY -> text.get(R.string.notif_spray_title)
+            MODE_BURST -> text.get(R.string.notif_burst_title)
+            else -> text.get(R.string.notif_running_title)
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("LoneFuzz BURST 実行中")
-            .setContentText("タップで停止")
+            .setContentTitle(title)
+            .setContentText(text.get(R.string.notif_stop_hint))
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(stopPending)
-            .addAction(android.R.drawable.ic_delete, "停止", stopPending)
-            .addAction(android.R.drawable.ic_menu_view, "開く", openPending)
+            .addAction(
+                android.R.drawable.ic_delete,
+                text.get(R.string.notif_action_stop), stopPending,
+            )
+            .addAction(
+                android.R.drawable.ic_menu_view,
+                text.get(R.string.notif_action_open), openPending,
+            )
             .setOngoing(true)
             .build()
     }
 
     companion object {
+        const val EXTRA_MODE = "mode"
+        const val EXTRA_LANG = "lang"
+        const val MODE_SPRAY = "spray"
+        const val MODE_BURST = "burst"
         const val ACTION_STOP = "io.github.azaberrypi.lonefuzz.STOP_BURST"
         const val CHANNEL_ID = "attack_channel"
         const val NOTIFICATION_ID = 1

@@ -87,4 +87,12 @@
     <string name="log_shot_start">=== single burst: %1$d targets / %2$d recipes ===</string>
     <string name="log_shot_done">=== single burst done (sent=%1$d, err=%2$d) ===</string>
 
+    <!-- Run notification -->
+    <string name="notif_channel_attack">Attack run</string>
+    <string name="notif_spray_title">LoneFuzz SPRAY running</string>
+    <string name="notif_burst_title">LoneFuzz BURST running</string>
+    <string name="notif_running_title">LoneFuzz running</string>
+    <string name="notif_stop_hint">Tap to stop</string>
+    <string name="notif_action_stop">Stop</string>
+    <string name="notif_action_open">Open</string>
 </resources>

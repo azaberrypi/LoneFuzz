@@ -279,6 +279,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 lastScanHits = results.filter { it.hit }
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
                 refreshBurstButton()
+                AttackControl.setStopListener(null)
             } else {
                 appendLog(t.get(R.string.log_burst_stop))
                 btnBurst.text = getString(R.string.btn_burst)
@@ -307,15 +308,23 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private fun toggleScan() {
         if (scanEngine.scanning) {
-            scanEngine.stop()
-            btnScan.text = getString(R.string.btn_scan)
-            appendLog(runText().get(R.string.log_spray_abort))
-            lastScanHits = scanEngine.getHits()
-            hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
-            refreshBurstButton()
+            stopScan()
             return
         }
         startSpray(selectedComponents(), selectedRecipes(), "spray")
+    }
+
+    /** spray を中断する（ボタン/通知の共通経路）。 */
+    private fun stopScan() {
+        if (!scanEngine.scanning) return
+        scanEngine.stop()
+        AttackControl.setStopListener(null)
+        stopFgs()
+        btnScan.text = getString(R.string.btn_scan)
+        appendLog(runText().get(R.string.log_spray_abort))
+        lastScanHits = scanEngine.getHits()
+        hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
+        refreshBurstButton()
     }
 
     /** spray を開始する共通導線（手動 spray と効果ベース再適応の自動再探索から使う）。 */
@@ -351,6 +360,11 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshBurstButton()
         setLogExpanded(true)
+        // SPRAY も FGS にして通知バーから中断できるようにする（画面を離れても継続）。
+        AttackControl.setStopListener {
+            mainHandler.post { if (scanEngine.scanning) stopScan() }
+        }
+        startFgs(AttackForegroundService.MODE_SPRAY, t)
         scanEngine.start(targets, recipes, t)
         return true
     }
@@ -392,7 +406,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         appendLog(t.get(R.string.log_burst_start, lastScanHits.size, hitApps))
         btnBurst.text = getString(R.string.btn_burst_stop)
         setLogExpanded(true)
-        startFgs()
+        startFgs(AttackForegroundService.MODE_BURST, t)
         AttackControl.setStopListener {
             mainHandler.post { if (scanEngine.bursting) stopBurst() }
         }
@@ -410,8 +424,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         updateStatsDisplay()
     }
 
-    private fun startFgs() {
+    private fun startFgs(mode: String, text: LogText) {
         val intent = Intent(this, AttackForegroundService::class.java)
+            .putExtra(AttackForegroundService.EXTRA_MODE, mode)
+            .putExtra(AttackForegroundService.EXTRA_LANG, text.locale.toLanguageTag())
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {

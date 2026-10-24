@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * 通知バーの「停止」または通知タップから BURST を止める。
+ * 通知バーの「停止」または通知タップから spray/BURST を止める。
  * Activity の再生成に依存せず、実行中 ScanEngine へ [AttackControl] 経由で停止を伝える。
  */
 class StopBurstReceiver : BroadcastReceiver() {
