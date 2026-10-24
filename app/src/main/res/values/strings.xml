@@ -1,8 +1,23 @@
 <resources>
     <string name="app_name">LoneFuzz</string>
 
+    <string name="lang_ja_desc">日本語</string>
+    <string name="lang_en_desc">English</string>
+    <string name="toast_copied">結果をコピーしました</string>
+
     <string name="btn_refresh">一覧を更新</string>
     <string name="label_recipes">アタックレシピ</string>
+    <string name="app_summary">%1$s  選択 %2$d/%3$d</string>
+    <string name="recipe_empty">空Intent</string>
+    <string name="recipe_type_mismatch">型不一致</string>
+    <string name="recipe_huge_numeric">巨大int/負値</string>
+    <string name="recipe_too_large">TooLarge</string>
+    <string name="recipe_bad_uri">不正URI</string>
+    <string name="recipe_bad_parcelable">BadParcelable</string>
+    <string name="recipe_fgs_5s">FGS 5秒</string>
+    <string name="stats_burst">BURST: 連射 %1$d 周目 | HIT %2$d（止めるまで継続）</string>
+    <string name="stats_spray">spray: %1$d/%2$d  hit: %3$d</string>
+    <string name="stats_counts">sent: %1$d  err: %2$d  hit: %3$d</string>
     <string name="label_targets">対象アプリ (exported コンポーネントあり)</string>
     <string name="search_hint">アプリ名 / パッケージ名で検索</string>
 

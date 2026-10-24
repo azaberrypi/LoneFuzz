@@ -9,27 +9,27 @@ import android.os.Parcelable
  * アタックレシピ集。exported コンポーネントに送ると未処理例外（クラッシュ/ANR）を
  * 誘発しやすい Intent ペイロードの「型」をまとめた総当たり集。
  */
-enum class RecipeType(val label: String, val defaultOn: Boolean = true) {
+enum class RecipeType(val label: String, val labelRes: Int, val defaultOn: Boolean = true) {
     /** extras 無しで発火。期待する extra を前提にした getXxx().method() で NPE を誘発。 */
-    EMPTY("空Intent", true),
+    EMPTY("空Intent", R.string.recipe_empty, true),
 
     /** 期待される型と違う extra（文字列 ↔ 数値 等）→ ClassCastException / 解釈失敗。 */
-    TYPE_MISMATCH("型不一致", false),
+    TYPE_MISMATCH("型不一致", R.string.recipe_type_mismatch, false),
 
     /** 極端な int/long（MIN/MAX・負値）→ ArrayIndexOutOfBounds / サイズ計算破綻。 */
-    HUGE_NUMERIC("巨大int/負値", false),
+    HUGE_NUMERIC("巨大int/負値", R.string.recipe_huge_numeric, false),
 
     /** 大きすぎる extra（巨大 byte[]）→ Binder の TransactionTooLargeException。 */
-    TRANSACTION_TOO_LARGE("TooLarge", false),
+    TRANSACTION_TOO_LARGE("TooLarge", R.string.recipe_too_large, false),
 
     /** null/存在しない URI → Provider の FileNotFoundException 等が未処理でクラッシュ。 */
-    BAD_URI("不正URI", false),
+    BAD_URI("不正URI", R.string.recipe_bad_uri, false),
 
     /** 対象プロセスに存在しない Parcelable クラス → unparcel 時に BadParcelableException。 */
-    BAD_PARCELABLE("BadParcelable", false),
+    BAD_PARCELABLE("BadParcelable", R.string.recipe_bad_parcelable, false),
 
     /** Service を startForegroundService で起動 → 5秒以内に startForeground されないと落ちる。 */
-    FOREGROUND_SERVICE_5S("FGS 5秒", false),
+    FOREGROUND_SERVICE_5S("FGS 5秒", R.string.recipe_fgs_5s, false),
     ;
 }
 

@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">LoneFuzz</string>
+
+    <string name="lang_ja_desc">Japanese</string>
+    <string name="lang_en_desc">English</string>
+    <string name="toast_copied">Results copied</string>
+
+    <string name="btn_refresh">Refresh list</string>
+    <string name="label_recipes">Attack recipes</string>
+    <string name="app_summary">%1$s  selected %2$d/%3$d</string>
+    <string name="recipe_empty">Empty Intent</string>
+    <string name="recipe_type_mismatch">Type mismatch</string>
+    <string name="recipe_huge_numeric">Huge int / negative</string>
+    <string name="recipe_too_large">TooLarge</string>
+    <string name="recipe_bad_uri">Invalid URI</string>
+    <string name="recipe_bad_parcelable">BadParcelable</string>
+    <string name="recipe_fgs_5s">FGS 5s</string>
+    <string name="stats_burst">BURST: cycle %1$d | HIT %2$d (runs until stopped)</string>
+    <string name="stats_spray">spray: %1$d/%2$d  hit: %3$d</string>
+    <string name="stats_counts">sent: %1$d  err: %2$d  hit: %3$d</string>
+    <string name="label_targets">Target apps (with exported components)</string>
+    <string name="search_hint">Search by app or package name</string>
+
+    <string name="btn_shot">SHOT</string>
+    <string name="btn_fire">Burst (hold)</string>
+    <string name="btn_scan">SPRAY</string>
+    <string name="btn_scan_stop">STOP</string>
+    <string name="btn_burst">BURST</string>
+    <string name="btn_burst_stop">STOP</string>
+
+    <string name="legend_actions">SPRAY=try every selected target ／ BURST=keep firing until stopped ／ SHOT=once ／ long-press each button for help</string>
+
+    <string name="tip_spray">Fire every component × recipe at the selected apps and look for crash holes</string>
+    <string name="tip_burst">Keep re-firing the payloads confirmed by spray until you stop</string>
+    <string name="tip_shot">Fire once at the selection (for visual confirmation)</string>
+
+    <string name="detector_off">Detector OFF (tap to enable)</string>
+    <string name="dump_off">DUMP OFF (tap to grant)</string>
+
+    <string name="label_log">▸ Log (tap to expand · long-press to copy results)</string>
+    <string name="log_cleared">--- log ---</string>
+
+    <string name="accessibility_service_description">Detects crash/ANR dialogs and records which recipe took the target app down.</string>
+</resources>

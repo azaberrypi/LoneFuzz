@@ -21,7 +21,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -53,6 +55,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private lateinit var statusRow: LinearLayout
     private lateinit var btnScan: Button
     private lateinit var btnBurst: Button
+    private lateinit var langJa: TextView
+    private lateinit var langEn: TextView
+    private lateinit var langIndicator: View
+    private var langChanging = false
 
     private val a11yManager by lazy {
         getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -75,6 +81,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private var totalHits = 0
     private var lastScanHits = emptyList<ScanEngine.Result>()
+
+    /** 言語切替で Activity が再生成された際、列挙完了後に選択状態を復元する。 */
+    private var pendingSelectedKeys: Set<String>? = null
+    private var pendingExpandedPkgs: Set<String>? = null
 
     /** BURST の連射サイクル数（連射は止めるまで継続するため、UI に明示する）。 */
     private var burstCycle = 0
@@ -113,6 +123,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         statusRow = findViewById(R.id.statusRow)
         btnScan = findViewById(R.id.btnScan)
         btnBurst = findViewById(R.id.btnBurst)
+        langJa = findViewById(R.id.langJa)
+        langEn = findViewById(R.id.langEn)
+        langIndicator = findViewById(R.id.langIndicator)
 
         val list = findViewById<RecyclerView>(R.id.appList)
         adapter = AppListAdapter()
@@ -168,10 +181,21 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
 
         setupScanCallbacks()
+        setupLanguageToggle()
 
         logView.text = getString(R.string.log_cleared)
+        restoreUiState(savedInstanceState)
         requestNotificationPermissionIfNeeded()
-        enumerate()
+        val cached = cachedApps
+        if (savedInstanceState != null && cached != null) {
+            // 言語切替の再生成では再列挙せず、直前の一覧と選択をそのまま使う。
+            allApps = cached
+            restoreSelectionState()
+            applyFilter()
+            refreshBurstButton()
+        } else {
+            enumerate()
+        }
 
         handleStopIntent(intent)
     }
@@ -204,9 +228,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         scanEngine.onLog = { line -> appendLog(line) }
         scanEngine.onProgress = { done, total, hits ->
             if (scanEngine.bursting) {
-                stats.text = "BURST: 連射 $burstCycle 周目 | HIT $hits（止めるまで継続）"
+                stats.text = getString(R.string.stats_burst, burstCycle, hits)
             } else {
-                stats.text = "spray: $done/$total  hit: $hits"
+                stats.text = getString(R.string.stats_spray, done, total, hits)
             }
         }
         scanEngine.onHit = { result ->
@@ -383,11 +407,108 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         logScroll.visibility = if (expanded) View.VISIBLE else View.GONE
     }
 
+    /**
+     * ヘッダ右上の言語トグル（JP / EN のスライド式セグメント）。
+     * AppCompat の per-app locale を切り替える。Activity は再生成されるため、
+     * ログ・検索語・選択状態は onSaveInstanceState / cachedApps で引き継ぐ。
+     */
+    private fun setupLanguageToggle() {
+        val ja = currentLanguage().startsWith("ja")
+        applyLangSelection(ja, animate = false)
+        langJa.setOnClickListener { switchLanguage("ja") }
+        langEn.setOnClickListener { switchLanguage("en") }
+    }
+
+    private fun currentLanguage(): String =
+        AppCompatDelegate.getApplicationLocales()[0]?.language
+            ?: resources.configuration.locales[0].language
+
+    private fun switchLanguage(tag: String) {
+        if (langChanging || currentLanguage().startsWith(tag)) return
+        langChanging = true
+        // 先にインジケータを滑らせてから再生成する（切替の手応えを出す）。
+        applyLangSelection(tag == "ja", animate = true)
+        mainHandler.postDelayed({
+            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+        }, 140)
+    }
+
+    private fun applyLangSelection(ja: Boolean, animate: Boolean) {
+        langJa.isSelected = ja
+        langEn.isSelected = !ja
+        langJa.setTextColor(getColor(if (ja) R.color.on_accent else R.color.on_surface_dim))
+        langEn.setTextColor(getColor(if (!ja) R.color.on_accent else R.color.on_surface_dim))
+        moveLangIndicator(ja, animate)
+    }
+
+    private fun moveLangIndicator(ja: Boolean, animate: Boolean) {
+        val indicator = langIndicator
+        if (indicator.width == 0) {
+            indicator.post { moveLangIndicator(ja, animate) }
+            return
+        }
+        indicator.visibility = View.VISIBLE
+        val target = if (ja) 0f else (langEn.left - langJa.left).toFloat()
+        if (animate) {
+            indicator.animate().translationX(target).setDuration(150).start()
+        } else {
+            indicator.translationX = target
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(KEY_LOG, synchronized(logBuffer) { logBuffer.joinToString("\n") })
+        outState.putBoolean(KEY_LOG_EXPANDED, logExpanded)
+        outState.putString(KEY_SEARCH, searchBox.text?.toString().orEmpty())
+        outState.putStringArrayList(
+            KEY_SELECTED,
+            ArrayList(allApps.flatMap { it.components }.filter { it.selected }.map { componentKey(it) }),
+        )
+        outState.putStringArrayList(
+            KEY_EXPANDED_APPS,
+            ArrayList(allApps.filter { it.expanded }.map { it.packageName }),
+        )
+    }
+
+    private fun restoreUiState(state: Bundle?) {
+        if (state == null) return
+        val savedLog = state.getString(KEY_LOG)
+        if (!savedLog.isNullOrEmpty()) {
+            synchronized(logBuffer) {
+                logBuffer.clear()
+                savedLog.split('\n').takeLast(MAX_LOG_LINES).forEach { logBuffer.addLast(it) }
+            }
+            logView.text = savedLog
+            logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+        }
+        logExpanded = state.getBoolean(KEY_LOG_EXPANDED, false)
+        setLogExpanded(logExpanded)
+        pendingSelectedKeys = state.getStringArrayList(KEY_SELECTED)?.toSet()
+        pendingExpandedPkgs = state.getStringArrayList(KEY_EXPANDED_APPS)?.toSet()
+        state.getString(KEY_SEARCH)?.takeIf { it.isNotEmpty() }?.let { searchBox.setText(it) }
+    }
+
+    /** 再列挙後に、言語切替前の選択・展開状態を戻す。 */
+    private fun restoreSelectionState() {
+        val selected = pendingSelectedKeys
+        val expanded = pendingExpandedPkgs
+        if (selected == null && expanded == null) return
+        allApps.forEach { app ->
+            app.expanded = app.packageName in expanded.orEmpty()
+            app.components.forEach { c -> c.selected = componentKey(c) in selected.orEmpty() }
+        }
+        pendingSelectedKeys = null
+        pendingExpandedPkgs = null
+    }
+
+    private fun componentKey(c: TargetComponent): String = "${c.packageName}/${c.className}"
+
     private fun copyResults() {
         val text = scanEngine.exportResults()
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("LoneFuzz Results", text))
-        Toast.makeText(this, "結果をコピーしました", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.toast_copied), Toast.LENGTH_SHORT).show()
     }
 
     override fun onResume() {
@@ -484,7 +605,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         )
         for (type in RecipeType.entries) {
             val chip = Chip(this).apply {
-                text = type.label
+                text = getString(type.labelRes)
                 isCheckable = true
                 isChecked = type.defaultOn
                 textSize = 12f
@@ -533,6 +654,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             val apps = ComponentEnumerator(packageManager).enumerate(excludePackage = packageName)
             mainHandler.post {
                 allApps = apps
+                cachedApps = apps
+                restoreSelectionState()
                 applyFilter()
                 appendLog("列挙完了: ${apps.size} アプリに exported コンポーネントあり")
                 // アンインストール済みを掃除し、残っている武器庫を通知。
@@ -609,7 +732,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             s = pendingSent
             e = pendingErr
         }
-        stats.text = "sent: $s  err: $e  hit: $totalHits"
+        stats.text = getString(R.string.stats_counts, s, e, totalHits)
     }
 
     private fun appendLog(line: String) {
@@ -642,5 +765,14 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     companion object {
         private const val MAX_LOG_LINES = 300
         private const val REQ_NOTIFICATIONS = 1001
+
+        private const val KEY_LOG = "ui_log"
+        private const val KEY_LOG_EXPANDED = "ui_log_expanded"
+        private const val KEY_SEARCH = "ui_search"
+        private const val KEY_SELECTED = "ui_selected"
+        private const val KEY_EXPANDED_APPS = "ui_expanded_apps"
+
+        /** 言語切替で Activity を再生成しても再列挙しないためのプロセス内キャッシュ。 */
+        private var cachedApps: List<TargetApp>? = null
     }
 }

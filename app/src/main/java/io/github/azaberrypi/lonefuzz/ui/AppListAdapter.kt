@@ -87,7 +87,9 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         fun bind(app: TargetApp) {
             label.text = app.label
             pkg.text = app.packageName
-            summary.text = "${app.summary()}  選択 ${app.selectedCount}/${app.components.size}"
+            summary.text = itemView.context.getString(
+                R.string.app_summary, app.summary(), app.selectedCount, app.components.size,
+            )
             caret.text = if (app.expanded) "▾" else "▸"
             check.setOnCheckedChangeListener(null)
             check.isChecked = app.components.isNotEmpty() && app.selectedCount == app.components.size
