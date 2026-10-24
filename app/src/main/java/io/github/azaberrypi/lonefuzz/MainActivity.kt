@@ -100,22 +100,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private fun runText(): LogText =
         runLogText ?: LogText(this, LogText.currentLocale(this)).also { runLogText = it }
 
-    private val hitListener = CrashWatcher.HitListener { hit ->
-        mainHandler.post {
-            // spray/BURST 実行中は ScanEngine が結果と信頼度を一元集計する。
-            // ここで数えると二重カウントになるため、手動 SHOT/連射 時のみ数える。
-            if (scanEngine.scanning) return@post
-            totalHits++
-            val msg = getString(
-                R.string.log_hit_manual,
-                hit.appLabel, hit.componentShort, hit.recipe, hit.kind,
-            )
-            appendLog("[$msg]")
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-            updateStatsDisplay()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -140,16 +124,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
         val list = findViewById<RecyclerView>(R.id.appList)
         adapter = AppListAdapter()
-        adapter.onSelectionChanged = { refreshBurstButton() }
+        adapter.onSelectionChanged = { refreshRunButtons() }
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
-
-        buildRecipeChips()
-
-        searchBox = findViewById(R.id.searchBox)
-        searchBox.doAfterTextChanged { applyFilter() }
-
-        findViewById<Button>(R.id.btnRefresh).setOnClickListener { enumerate() }
 
         btnShot = findViewById(R.id.btnShot)
         btnShot.setOnClickListener {
@@ -157,8 +134,22 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 appendLog(getString(R.string.log_shot_blocked))
                 return@setOnClickListener
             }
-            engine.fireBurst(selectedComponents(), selectedRecipes(), this)
+            val comps = selectedComponents()
+            val recipes = selectedRecipes()
+            if (comps.size != 1 || recipes.size != 1) {
+                appendLog(getString(R.string.log_shot_select_one))
+                return@setOnClickListener
+            }
+            engine.fireShot(comps[0], recipes[0], this)
         }
+
+        buildRecipeChips()
+        recipeContainer.setOnCheckedStateChangeListener { _, _ -> refreshRunButtons() }
+
+        searchBox = findViewById(R.id.searchBox)
+        searchBox.doAfterTextChanged { applyFilter() }
+
+        findViewById<Button>(R.id.btnRefresh).setOnClickListener { enumerate() }
 
         setupFireButton(findViewById(R.id.btnFire))
 
@@ -209,7 +200,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             allApps = cached
             restoreSelectionState()
             applyFilter()
-            refreshBurstButton()
+            refreshRunButtons()
         } else {
             enumerate()
         }
@@ -284,7 +275,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
                 lastScanHits = results.filter { it.hit }
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
-                refreshBurstButton()
+                refreshRunButtons()
                 AttackControl.setStopListener(null)
             } else {
                 appendLog(t.get(R.string.log_burst_stop))
@@ -330,7 +321,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         appendLog(runText().get(R.string.log_spray_abort))
         lastScanHits = scanEngine.getHits()
         hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
-        refreshBurstButton()
+        refreshRunButtons()
     }
 
     /** spray を開始する共通導線（手動 spray と効果ベース再適応の自動再探索から使う）。 */
@@ -365,7 +356,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             appendLog(t.get(R.string.log_dump_warning))
         }
         btnScan.text = getString(R.string.btn_scan_stop)
-        refreshBurstButton()
+        refreshRunButtons()
         setLogExpanded(true)
         // SPRAY も FGS にして通知バーから中断できるようにする（画面を離れても継続）。
         AttackControl.setStopListener {
@@ -373,7 +364,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         startFgs(AttackForegroundService.MODE_SPRAY, t)
         scanEngine.start(targets, recipes, t)
-        refreshBurstButton()
+        refreshRunButtons()
         return true
     }
 
@@ -420,7 +411,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             mainHandler.post { if (scanEngine.bursting) stopBurst() }
         }
         scanEngine.startBurst(lastScanHits, t)
-        refreshBurstButton()
+        refreshRunButtons()
     }
 
     private fun stopBurst() {
@@ -429,7 +420,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         stopFgs()
         btnBurst.text = getString(R.string.btn_burst)
         appendLog(runText().get(R.string.log_burst_stop))
-        refreshBurstButton()
+        refreshRunButtons()
         updateStatsDisplay()
     }
 
@@ -571,11 +562,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     override fun onResume() {
         super.onResume()
-        CrashWatcher.setListener(hitListener)
         a11yManager.addAccessibilityStateChangeListener(a11yStateListener)
         updateDetectorStatus()
         updateDumpStatus()
-        refreshBurstButton()
+        refreshRunButtons()
         // a11y サービスは onResume 直後に接続完了することがあり、初回表示が
         // 「検知 OFF」のまま残る。少し遅らせて再確認する。
         mainHandler.postDelayed({
@@ -585,23 +575,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
         if (scanEngine.scanning) {
             scanEngine.onResumed()
-        } else {
-            val rapidHit = CrashWatcher.checkRapidReturn()
-            if (rapidHit != null) {
-                totalHits++
-                val msg = getString(
-                    R.string.log_hit_manual,
-                    rapidHit.appLabel, rapidHit.componentShort, rapidHit.recipe, rapidHit.kind,
-                )
-                appendLog(getString(R.string.log_rapid, msg))
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                updateStatsDisplay()
-            }
         }
     }
 
     override fun onPause() {
-        CrashWatcher.setListener(null)
         a11yManager.removeAccessibilityStateChangeListener(a11yStateListener)
         super.onPause()
     }
@@ -702,14 +679,15 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
      * BURST は常時表示のまま、押せる/押せないだけを切り替える
      * （実行中にボタンが生えたり消えたりしないように）。
      */
-    private fun refreshBurstButton() {
+    private fun refreshRunButtons() {
         btnBurst.isEnabled = when {
             scanEngine.bursting -> true // 停止ボタンとして押せる
             scanEngine.scanning -> false // spray 中は開始不可
             else -> canBurst()
         }
-        // SHOT は走査と同時に撃つと結果が混ざるので、実行中は押せなくする。
-        btnShot.isEnabled = !scanEngine.scanning
+        // SHOT は「1コンポーネント × 1レシピ」のときだけ。走査中も押せない。
+        val shotReady = selectedComponents().size == 1 && selectedRecipes().size == 1
+        btnShot.isEnabled = !scanEngine.scanning && shotReady
     }
 
     private fun enumerate() {
@@ -728,7 +706,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 if (stored > 0) {
                     appendLog(getString(R.string.log_armory_count, stored))
                 }
-                refreshBurstButton()
+                refreshRunButtons()
             }
         }.apply { isDaemon = true }.start()
     }
@@ -840,7 +818,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         engine.stop()
         scanEngine.stop()
         stopFgs()
-        CrashWatcher.setListener(null)
         super.onDestroy()
     }
 

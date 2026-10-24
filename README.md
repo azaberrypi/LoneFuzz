@@ -133,7 +133,7 @@ used for "detection confidence" and "automation".
 
 | Mode | Purpose | Permissions |
 |---|---|---|
-| **SHOT** (single) | Fires one pass over the selection without per-shot detection (visual check) | Zero permissions |
+| **SHOT** (single) | Sends one Intent to one selected component with one recipe (no detection; select exactly one of each) | Zero permissions |
 | **SPRAY** (explore) | Sweeps exported Activities × recipes one pair at a time, waiting for a crash/ANR after each to detect and record effective payloads (slower; selecting targets is required) | Accessibility (automation/detection) |
 | **BURST** | Keeps re-sending only the confirmed effective payloads in a loop, continuously taking the target down (reusable from the armory without spray) | Accessibility + foreground service |
 

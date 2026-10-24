@@ -28,11 +28,11 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=1つずつ撃って検知 ／ BURST=確定HITを止めるまで連射 ／ SHOT=検知待ちなしで1周（目視） ／ 長押しで説明</string>
+    <string name="legend_actions">SPRAY=1つずつ撃って検知 ／ BURST=確定HITを止めるまで連射 ／ SHOT=1コンポーネント×1レシピを1発（検知なし） ／ 長押しで説明</string>
 
     <string name="tip_spray">選択した対象にコンポーネント×レシピを1つずつ撃ち、各発射後にクラッシュ/ANRを待って検知する（時間がかかる）</string>
     <string name="tip_burst">spray で確定した有効なペイロードを、止めるまで連射し続ける</string>
-    <string name="tip_shot">選択中の全コンポーネント × 全レシピを、検知待ちなしで1周だけ高速に撃つ（目視確認用）</string>
+    <string name="tip_shot">選択中の1コンポーネント × 1レシピに Intent を1回だけ送る（検知なし）</string>
 
     <string name="detector_off">検知 OFF（タップで有効化）</string>
     <string name="dump_off">DUMP OFF（タップで付与）</string>
@@ -64,8 +64,6 @@
     <string name="log_need_a11y_burst">BURST にはユーザー補助の有効化が必要です。</string>
     <string name="log_burst_start">=== BURST 開始: %1$d HIT (%2$d アプリ) — 止めるまで連射を継続 ===</string>
     <string name="log_hit">HIT[%1$s] %2$s / %3$s [%4$s]</string>
-    <string name="log_hit_manual">HIT! %1$s / %2$s [%3$s] (%4$s)</string>
-    <string name="log_rapid">[%1$s] (即戻り検知)</string>
     <string name="conf_confirmed">確定</string>
     <string name="conf_suspected">疑い</string>
     <string name="log_skip_pairs">※ このコンポーネント種別では意味のない組み合わせ %1$d 件をスキップ（FGS は Service のみ / Provider は空Intent のみ）</string>
@@ -86,9 +84,10 @@
     <string name="log_hold_start">=== 連射 開始: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_hold_stop">=== 連射 停止 (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
-    <string name="log_shot_start">=== SHOT: %1$d 対象 × %2$d レシピを1周（検知待ちなし） ===</string>
-    <string name="log_shot_done">=== SHOT 完了 (sent=%1$d, err=%2$d) ===</string>
-    <string name="log_shot_busy">SHOT は実行中です。完了まで待ってください。</string>
+    <string name="log_shot_select_one">SHOT はコンポーネント1つ・レシピ1つを選択したときだけ撃てます。</string>
+    <string name="log_shot_not_applicable">SHOT: %1$s は %2$s には使えません。</string>
+    <string name="log_shot">[SHOT] %1$s / %2$s [%3$s %4$s] → %5$s</string>
+    <string name="log_shot_error">[SHOT err] %1$s: %2$s</string>
 
     <!-- 実行中通知 -->
     <string name="notif_channel_attack">攻撃実行</string>

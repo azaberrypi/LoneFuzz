@@ -28,11 +28,11 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=fire &amp; detect one by one ／ BURST=loop confirmed hits until stopped ／ SHOT=one fast pass, no wait ／ long-press for help</string>
+    <string name="legend_actions">SPRAY=fire &amp; detect one by one ／ BURST=loop confirmed hits until stopped ／ SHOT=one component × one recipe, no detection ／ long-press for help</string>
 
     <string name="tip_spray">Fire component × recipe pairs one at a time, waiting for a crash/ANR after each (slower)</string>
     <string name="tip_burst">Keep re-firing the payloads confirmed by spray until you stop</string>
-    <string name="tip_shot">Fire all selected components × recipes once, back-to-back, without waiting for detection (visual check)</string>
+    <string name="tip_shot">Send one Intent to the selected single component × single recipe (no detection; select exactly one of each)</string>
 
     <string name="detector_off">Detector OFF (tap to enable)</string>
     <string name="dump_off">DUMP OFF (tap to grant)</string>
@@ -64,8 +64,6 @@
     <string name="log_need_a11y_burst">Accessibility must be enabled for BURST.</string>
     <string name="log_burst_start">=== BURST start: %1$d HITs (%2$d apps) — firing until stopped ===</string>
     <string name="log_hit">HIT[%1$s] %2$s / %3$s [%4$s]</string>
-    <string name="log_hit_manual">HIT! %1$s / %2$s [%3$s] (%4$s)</string>
-    <string name="log_rapid">[%1$s] (rapid return)</string>
     <string name="conf_confirmed">confirmed</string>
     <string name="conf_suspected">suspected</string>
     <string name="log_skip_pairs">Note: skipped %1$d meaningless kind/recipe pairs (FGS = Service only / Provider = Empty Intent only)</string>
@@ -86,9 +84,10 @@
     <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
     <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">Cannot SHOT while SPRAY/BURST is running. Stop it first.</string>
-    <string name="log_shot_start">=== SHOT: one pass over %1$d targets × %2$d recipes (no per-shot wait) ===</string>
-    <string name="log_shot_done">=== SHOT done (sent=%1$d, err=%2$d) ===</string>
-    <string name="log_shot_busy">SHOT is already running. Wait for it to finish.</string>
+    <string name="log_shot_select_one">SHOT requires exactly one component and one recipe.</string>
+    <string name="log_shot_not_applicable">SHOT: %1$s is not applicable to %2$s.</string>
+    <string name="log_shot">[SHOT] %1$s / %2$s [%3$s %4$s] → %5$s</string>
+    <string name="log_shot_error">[SHOT err] %1$s: %2$s</string>
 
     <!-- Run notification -->
     <string name="notif_channel_attack">Attack run</string>
