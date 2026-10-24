@@ -40,6 +40,11 @@ class AttackEngine(context: Context) {
         return lt.get(id, *args)
     }
 
+    private fun header(): String {
+        val lt = logText ?: LogText(appContext, LogText.currentLocale(appContext)).also { logText = it }
+        return lt.runHeader()
+    }
+
     fun start(targets: List<TargetComponent>, recipes: List<RecipeType>, listener: Listener) {
         if (running) return
         logText = LogText(appContext, LogText.currentLocale(appContext))
@@ -55,6 +60,7 @@ class AttackEngine(context: Context) {
         sent.set(0)
         errors.set(0)
         listener.onStats(0, 0)
+        listener.onLog(header())
         listener.onLog(text(R.string.log_hold_start, targets.size, recipes.size))
 
         worker = Thread {
@@ -112,6 +118,7 @@ class AttackEngine(context: Context) {
         shotRunning = true
         Thread {
             try {
+                listener.onLog(header())
                 listener.onLog(text(R.string.log_shot_start, targets.size, recipes.size))
                 for (tc in targets) {
                     for (recipe in recipes) {

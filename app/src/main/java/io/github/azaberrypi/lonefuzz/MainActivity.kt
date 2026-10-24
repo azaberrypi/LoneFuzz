@@ -359,6 +359,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val s = targets.count { it.kind == ComponentKind.SERVICE }
         val r = targets.count { it.kind == ComponentKind.RECEIVER }
         val p = targets.count { it.kind == ComponentKind.PROVIDER }
+        appendLog(t.runHeader())
         appendLog(t.get(R.string.log_spray_start, label, appCount, a, s, r, p, recipes.size))
         if (s + r + p > 0 && !CrashWatcher.hasDumpPermission(this)) {
             appendLog(t.get(R.string.log_dump_warning))
@@ -410,6 +411,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
         val hitApps = lastScanHits.map { it.packageName }.distinct().size
         burstCycle = 0
+        appendLog(t.runHeader())
         appendLog(t.get(R.string.log_burst_start, lastScanHits.size, hitApps))
         btnBurst.text = getString(R.string.btn_burst_stop)
         setLogExpanded(true)

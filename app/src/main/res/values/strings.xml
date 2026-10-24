@@ -44,6 +44,7 @@
     <string name="accessibility_service_description">クラッシュ/ANR ダイアログの出現を自動検知し、どのレシピが対象アプリを落としたかを記録します。</string>
 
     <!-- 実行ログ（spray/BURST 開始時の言語で固定） -->
+    <string name="log_run_header">---- %1$s ----</string>
     <string name="log_enumerating">アプリ列挙中...</string>
     <string name="log_enumerated">列挙完了: %1$d アプリに exported コンポーネントあり</string>
     <string name="log_armory_count">武器庫: 保存済みHIT %1$d 件（対象を選び「BURST」で spray 無しに再利用可）</string>
