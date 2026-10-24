@@ -84,6 +84,7 @@
     <string name="log_no_recipes">No recipe selected.</string>
     <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
     <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_blocked">Cannot SHOT while SPRAY/BURST is running. Stop it first.</string>
     <string name="log_shot_start">=== single burst: %1$d targets / %2$d recipes ===</string>
     <string name="log_shot_done">=== single burst done (sent=%1$d, err=%2$d) ===</string>
 

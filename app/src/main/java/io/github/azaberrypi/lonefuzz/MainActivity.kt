@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private lateinit var statusRow: LinearLayout
     private lateinit var btnScan: Button
     private lateinit var btnBurst: Button
+    private lateinit var btnShot: Button
     private lateinit var langJa: TextView
     private lateinit var langEn: TextView
     private lateinit var langIndicator: View
@@ -150,7 +151,12 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
         findViewById<Button>(R.id.btnRefresh).setOnClickListener { enumerate() }
 
-        findViewById<Button>(R.id.btnShot).setOnClickListener {
+        btnShot = findViewById(R.id.btnShot)
+        btnShot.setOnClickListener {
+            if (scanEngine.scanning) {
+                appendLog(getString(R.string.log_shot_blocked))
+                return@setOnClickListener
+            }
             engine.fireBurst(selectedComponents(), selectedRecipes(), this)
         }
 
@@ -162,7 +168,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         // ボタンの意味は長押しツールチップで補足する（連射ボタンは長押し=発火なので除く）。
         TooltipCompat.setTooltipText(findViewById(R.id.btnScan), getString(R.string.tip_spray))
         TooltipCompat.setTooltipText(findViewById(R.id.btnBurst), getString(R.string.tip_burst))
-        TooltipCompat.setTooltipText(findViewById(R.id.btnShot), getString(R.string.tip_shot))
+        TooltipCompat.setTooltipText(btnShot, getString(R.string.tip_shot))
 
         detectorStatus.setOnClickListener {
             if (!isDetectorEnabled()) {
@@ -366,6 +372,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         startFgs(AttackForegroundService.MODE_SPRAY, t)
         scanEngine.start(targets, recipes, t)
+        refreshBurstButton()
         return true
     }
 
@@ -699,6 +706,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             scanEngine.scanning -> false // spray 中は開始不可
             else -> canBurst()
         }
+        // SHOT は走査と同時に撃つと結果が混ざるので、実行中は押せなくする。
+        btnShot.isEnabled = !scanEngine.scanning
     }
 
     private fun enumerate() {

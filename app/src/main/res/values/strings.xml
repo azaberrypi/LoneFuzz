@@ -84,6 +84,7 @@
     <string name="log_no_recipes">レシピが選択されていません。</string>
     <string name="log_hold_start">=== 連射 開始: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_hold_stop">=== 連射 停止 (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
     <string name="log_shot_start">=== 単発 burst: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_shot_done">=== 単発 burst 完了 (sent=%1$d, err=%2$d) ===</string>
 
