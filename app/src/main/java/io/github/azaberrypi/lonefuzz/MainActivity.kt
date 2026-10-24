@@ -660,6 +660,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 text = getString(type.labelRes)
                 isCheckable = true
                 isChecked = type.defaultOn
+                isCheckedIconVisible = false
                 textSize = 12f
                 chipStrokeWidth = strokePx
                 chipStrokeColor = ColorStateList.valueOf(getColor(R.color.accent_dim))
