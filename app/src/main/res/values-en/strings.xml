@@ -38,6 +38,7 @@
     <string name="dump_off">DUMP OFF (tap to grant)</string>
 
     <string name="label_log">▸ Log (tap to expand · long-press to copy results)</string>
+    <string name="btn_clear_log">Clear</string>
     <string name="log_cleared">--- log ---</string>
 
     <string name="accessibility_service_description">Detects crash/ANR dialogs and records which recipe took the target app down.</string>

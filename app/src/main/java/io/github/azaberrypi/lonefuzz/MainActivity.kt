@@ -75,6 +75,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private val logBuffer = ArrayDeque<String>()
     private var flushPending = false
+    private var logGeneration = 0
     private var pendingSent = 0
     private var pendingErr = 0
     private var statsPending = false
@@ -179,6 +180,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             copyResults()
             true
         }
+        findViewById<TextView>(R.id.btnClearLog).setOnClickListener { clearLog() }
 
         setupScanCallbacks()
         setupLanguageToggle()
@@ -736,21 +738,39 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     }
 
     private fun appendLog(line: String) {
+        val generation: Int
         synchronized(logBuffer) {
             logBuffer.addLast(line)
             while (logBuffer.size > MAX_LOG_LINES) logBuffer.removeFirst()
             if (flushPending) return
             flushPending = true
+            generation = logGeneration
         }
         mainHandler.post {
             val text: String
             synchronized(logBuffer) {
+                if (generation != logGeneration) {
+                    // クリア後に古い flush が走っても、新しいログを消さない。
+                    flushPending = false
+                    return@post
+                }
                 flushPending = false
                 text = logBuffer.joinToString("\n")
             }
             logView.text = text
             logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
         }
+    }
+
+    /** ログ表示だけを消す（走査結果や武器庫はそのまま）。 */
+    private fun clearLog() {
+        synchronized(logBuffer) {
+            logGeneration++
+            logBuffer.clear()
+            flushPending = false
+        }
+        logView.text = getString(R.string.log_cleared)
+        logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     override fun onDestroy() {

@@ -38,6 +38,7 @@
     <string name="dump_off">DUMP OFF（タップで付与）</string>
 
     <string name="label_log">▸ ログ（タップで開閉・長押しで結果コピー）</string>
+    <string name="btn_clear_log">クリア</string>
     <string name="log_cleared">--- ログ ---</string>
 
     <string name="accessibility_service_description">クラッシュ/ANR ダイアログの出現を自動検知し、どのレシピが対象アプリを落としたかを記録します。</string>
