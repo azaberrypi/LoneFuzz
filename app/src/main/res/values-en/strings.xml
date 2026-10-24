@@ -28,11 +28,11 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=try every selected target ／ BURST=keep firing until stopped ／ SHOT=once ／ long-press each button for help</string>
+    <string name="legend_actions">SPRAY=fire &amp; detect one by one ／ BURST=loop confirmed hits until stopped ／ SHOT=one fast pass, no wait ／ long-press for help</string>
 
-    <string name="tip_spray">Fire every component × recipe at the selected apps and look for crash holes</string>
+    <string name="tip_spray">Fire component × recipe pairs one at a time, waiting for a crash/ANR after each (slower)</string>
     <string name="tip_burst">Keep re-firing the payloads confirmed by spray until you stop</string>
-    <string name="tip_shot">Fire one pass over all selected components × recipes (visual check)</string>
+    <string name="tip_shot">Fire all selected components × recipes once, back-to-back, without waiting for detection (visual check)</string>
 
     <string name="detector_off">Detector OFF (tap to enable)</string>
     <string name="dump_off">DUMP OFF (tap to grant)</string>
@@ -44,7 +44,7 @@
     <string name="accessibility_service_description">Detects crash/ANR dialogs and records which recipe took the target app down.</string>
 
     <!-- Run logs (fixed to the language when spray/BURST started) -->
-    <string name="log_run_header">---- %1$s ----</string>
+    <string name="log_run_header">=== %1$s ===</string>
     <string name="log_enumerating">Enumerating apps...</string>
     <string name="log_enumerated">Enumerated: %1$d apps with exported components</string>
     <string name="log_armory_count">Armory: %1$d stored HITs (select a target and use BURST to reuse without spray)</string>
@@ -86,7 +86,7 @@
     <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
     <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">Cannot SHOT while SPRAY/BURST is running. Stop it first.</string>
-    <string name="log_shot_start">=== SHOT: one pass over %1$d targets × %2$d recipes ===</string>
+    <string name="log_shot_start">=== SHOT: one pass over %1$d targets × %2$d recipes (no per-shot wait) ===</string>
     <string name="log_shot_done">=== SHOT done (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_busy">SHOT is already running. Wait for it to finish.</string>
 

@@ -28,11 +28,11 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=選択対象を総当たり ／ BURST=穴を止めるまで連射 ／ SHOT=1回だけ ／ 各ボタン長押しで説明</string>
+    <string name="legend_actions">SPRAY=1つずつ撃って検知 ／ BURST=確定HITを止めるまで連射 ／ SHOT=検知待ちなしで1周（目視） ／ 長押しで説明</string>
 
-    <string name="tip_spray">選択した対象アプリに、コンポーネント×レシピを総当たりで撃ち、落ちる穴を探す</string>
+    <string name="tip_spray">選択した対象にコンポーネント×レシピを1つずつ撃ち、各発射後にクラッシュ/ANRを待って検知する（時間がかかる）</string>
     <string name="tip_burst">spray で確定した有効なペイロードを、止めるまで連射し続ける</string>
-    <string name="tip_shot">選択中の全コンポーネント × 全レシピを1周撃つ（目視確認用）</string>
+    <string name="tip_shot">選択中の全コンポーネント × 全レシピを、検知待ちなしで1周だけ高速に撃つ（目視確認用）</string>
 
     <string name="detector_off">検知 OFF（タップで有効化）</string>
     <string name="dump_off">DUMP OFF（タップで付与）</string>
@@ -44,7 +44,7 @@
     <string name="accessibility_service_description">クラッシュ/ANR ダイアログの出現を自動検知し、どのレシピが対象アプリを落としたかを記録します。</string>
 
     <!-- 実行ログ（spray/BURST 開始時の言語で固定） -->
-    <string name="log_run_header">---- %1$s ----</string>
+    <string name="log_run_header">=== %1$s ===</string>
     <string name="log_enumerating">アプリ列挙中...</string>
     <string name="log_enumerated">列挙完了: %1$d アプリに exported コンポーネントあり</string>
     <string name="log_armory_count">武器庫: 保存済みHIT %1$d 件（対象を選び「BURST」で spray 無しに再利用可）</string>
@@ -86,7 +86,7 @@
     <string name="log_hold_start">=== 連射 開始: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_hold_stop">=== 連射 停止 (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
-    <string name="log_shot_start">=== SHOT: %1$d 対象 × %2$d レシピを1周 ===</string>
+    <string name="log_shot_start">=== SHOT: %1$d 対象 × %2$d レシピを1周（検知待ちなし） ===</string>
     <string name="log_shot_done">=== SHOT 完了 (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_busy">SHOT は実行中です。完了まで待ってください。</string>
 
