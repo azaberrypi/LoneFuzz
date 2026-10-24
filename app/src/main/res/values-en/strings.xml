@@ -42,4 +42,49 @@
     <string name="log_cleared">--- log ---</string>
 
     <string name="accessibility_service_description">Detects crash/ANR dialogs and records which recipe took the target app down.</string>
+
+    <!-- Run logs (fixed to the language when spray/BURST started) -->
+    <string name="log_enumerating">Enumerating apps...</string>
+    <string name="log_enumerated">Enumerated: %1$d apps with exported components</string>
+    <string name="log_armory_count">Armory: %1$d stored HITs (select a target and use BURST to reuse without spray)</string>
+    <string name="log_spray_start">=== %1$s start: %2$d apps / %3$d A, %4$d S, %5$d R, %6$d P × %7$d recipes ===</string>
+    <string name="log_dump_warning">Note: without DUMP, non-Activity hits rely on dialog observation and may be missed (grant DUMP for confirmation).</string>
+    <string name="log_need_a11y_spray">Accessibility must be enabled for spray.</string>
+    <string name="log_select_target">Select a target (app checkbox = all components, component row = individual).</string>
+    <string name="log_select_recipe">No recipe selected.</string>
+    <string name="log_spray_complete">=== spray complete: %1$d apps / %2$d tests → %3$d HIT (%4$d apps) | confirmed %5$d / suspected %6$d ===</string>
+    <string name="log_spray_abort">=== spray aborted ===</string>
+    <string name="log_burst_stop">=== BURST stopped ===</string>
+    <string name="log_cycle_complete">--- burst cycle %1$d complete (runs until stopped) ---</string>
+    <string name="log_stale">=== No longer effective: %1$s / %2$s [%3$s] disabled in the armory (burst continues; re-spray manually) ===</string>
+    <string name="log_burst_need_target">Select targets with spray results or stored HITs.</string>
+    <string name="log_burst_no_hits">No stored HITs for the selection. Run a spray first.</string>
+    <string name="log_burst_loaded">Loaded %1$d HITs from the armory (last confirmed version kept; not invalidated by version).</string>
+    <string name="log_need_a11y_burst">Accessibility must be enabled for BURST.</string>
+    <string name="log_burst_start">=== BURST start: %1$d HITs (%2$d apps) — firing until stopped ===</string>
+    <string name="log_hit">HIT[%1$s] %2$s / %3$s [%4$s]</string>
+    <string name="log_hit_manual">HIT! %1$s / %2$s [%3$s] (%4$s)</string>
+    <string name="log_rapid">[%1$s] (rapid return)</string>
+    <string name="conf_confirmed">confirmed</string>
+    <string name="conf_suspected">suspected</string>
+    <string name="log_skip_pairs">Note: skipped %1$d meaningless kind/recipe pairs (FGS = Service only / Provider = Empty Intent only)</string>
+    <string name="log_fire">[fire] %1$s / %2$s [%3$s %4$s] → %5$s</string>
+    <string name="log_fire_failed">[fire failed] %1$s / %2$s [%3$s %4$s] → %5$s</string>
+    <string name="log_probe_no_authority">[fire note] %1$s / %2$s → unknown authority</string>
+    <string name="log_probe_start_failed">[fire note] %1$s probe start failed → %2$s</string>
+    <string name="log_bg_service_blocked">Note: %1$s rejected startService (background restriction). Binding first, then retrying.</string>
+    <string name="log_bind_failed">Note: bind failed: %1$s</string>
+    <string name="log_bind_start_ok">Note: startService succeeded after bind (reached onStartCommand)</string>
+    <string name="log_bind_start_denied">Note: startService still rejected after bind (%1$s). Target is backgrounded; onStartCommand cannot be tested.</string>
+    <string name="log_bind_unavailable">Note: cannot start the Service (bind unavailable)</string>
+    <string name="log_result">[result] %1$s / %2$s [%3$s] → %4$s</string>
+    <string name="mark_confirmed">confirmed (crash)</string>
+    <string name="mark_suspected">suspected (rapid return / UsageStats)</string>
+    <string name="log_no_targets">No target components.</string>
+    <string name="log_no_recipes">No recipe selected.</string>
+    <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
+    <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_start">=== single burst: %1$d targets / %2$d recipes ===</string>
+    <string name="log_shot_done">=== single burst done (sent=%1$d, err=%2$d) ===</string>
+
 </resources>

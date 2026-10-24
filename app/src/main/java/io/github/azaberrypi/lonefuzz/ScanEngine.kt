@@ -57,6 +57,14 @@ class ScanEngine(private val activity: Activity) {
     private var cycleCount = 0
     private var burstHits = emptyList<Pair<TargetComponent, RecipeType>>()
 
+    /** 走査開始時の言語。ログはこの言語で固定する。 */
+    private var logText: LogText? = null
+
+    private fun text(id: Int, vararg args: Any): String {
+        val lt = logText ?: LogText(activity, LogText.currentLocale(activity)).also { logText = it }
+        return lt.get(id, *args)
+    }
+
     var onProgress: ((done: Int, total: Int, hits: Int) -> Unit)? = null
     var onHit: ((Result) -> Unit)? = null
     var onComplete: ((List<Result>) -> Unit)? = null
@@ -75,12 +83,13 @@ class ScanEngine(private val activity: Activity) {
     private val burstMisses = HashMap<String, Int>()
 
     /** spray モード: 全コンポーネント × レシピを1周スキャン */
-    fun start(components: List<TargetComponent>, recipes: List<RecipeType>) {
+    fun start(components: List<TargetComponent>, recipes: List<RecipeType>, strings: LogText) {
         if (scanning) return
         if (!CrashDetectorService.isRunning) {
             onComplete?.invoke(emptyList())
             return
         }
+        logText = strings
         scanning = true
         bursting = false
         results.clear()
@@ -99,10 +108,7 @@ class ScanEngine(private val activity: Activity) {
             }
         }
         if (skipped > 0) {
-            onLog?.invoke(
-                "※ このコンポーネント種別では意味のない組み合わせ $skipped 件をスキップ" +
-                    "（FGS は Service のみ / Provider は空Intent のみ）",
-            )
+            onLog?.invoke(text(R.string.log_skip_pairs, skipped))
         }
         totalCount = queue.size
         if (totalCount == 0) {
@@ -114,12 +120,13 @@ class ScanEngine(private val activity: Activity) {
     }
 
     /** BURST モード: 確定HITだけを繰り返し連射 */
-    fun startBurst(hits: List<Result>) {
+    fun startBurst(hits: List<Result>, strings: LogText) {
         if (scanning) return
         if (!CrashDetectorService.isRunning) {
             onComplete?.invoke(emptyList())
             return
         }
+        logText = strings
         scanning = true
         bursting = true
         cycleCount = 0
@@ -189,17 +196,20 @@ class ScanEngine(private val activity: Activity) {
         val pair = queue.removeFirst()
         current = pair
         val (comp, recipe) = pair
+        val recipeLabel = text(recipe.labelRes)
 
         try {
             val shot = CrashWatcher.FiredShot(
-                comp.packageName, comp.appLabel, comp.shortName(), recipe.label,
+                comp.packageName, comp.appLabel, comp.shortName(), recipeLabel,
             )
             CrashWatcher.recordFire(shot)
             if (comp.kind == ComponentKind.ACTIVITY) CrashWatcher.recordActivityFire(shot)
 
             onLog?.invoke(
-                "[発射] ${comp.appLabel} / ${comp.shortName()} " +
-                    "[${kindTag(comp.kind)} ${recipe.label}] → ${comp.packageName}",
+                text(
+                    R.string.log_fire, comp.appLabel, comp.shortName(),
+                    kindTag(comp.kind), recipeLabel, comp.packageName,
+                ),
             )
             fireTime = System.currentTimeMillis()
 
@@ -239,13 +249,15 @@ class ScanEngine(private val activity: Activity) {
             }
         } catch (t: Throwable) {
             onLog?.invoke(
-                "[発射失敗] ${comp.appLabel} / ${comp.shortName()} " +
-                    "[${kindTag(comp.kind)} ${recipe.label}] → ${t.javaClass.simpleName}",
+                text(
+                    R.string.log_fire_failed, comp.appLabel, comp.shortName(),
+                    kindTag(comp.kind), recipeLabel, t.javaClass.simpleName,
+                ),
             )
             results.add(
                 Result(
                     comp.appLabel, comp.packageName, comp.shortName(), comp.className,
-                    comp.appVersion, recipe, recipe.label, hit = false,
+                    comp.appVersion, recipe, recipeLabel, hit = false,
                     confidence = HitConfidence.NONE,
                     kind = comp.kind, authority = comp.authority,
                 ),
@@ -273,7 +285,7 @@ class ScanEngine(private val activity: Activity) {
     private fun fireProvider(comp: TargetComponent) {
         val authority = comp.authority
         if (authority.isNullOrEmpty()) {
-            onLog?.invoke("[発射注意] ${comp.appLabel} / ${comp.shortName()} → authority 不明")
+            onLog?.invoke(text(R.string.log_probe_no_authority, comp.appLabel, comp.shortName()))
             return
         }
         val intent = Intent(activity, ProviderProbeService::class.java).apply {
@@ -284,7 +296,7 @@ class ScanEngine(private val activity: Activity) {
             activity.startService(intent)
         } catch (t: Throwable) {
             onLog?.invoke(
-                "[発射注意] ${comp.shortName()} probe 起動失敗 → ${t.javaClass.simpleName}",
+                text(R.string.log_probe_start_failed, comp.shortName(), t.javaClass.simpleName),
             )
         }
     }
@@ -303,10 +315,7 @@ class ScanEngine(private val activity: Activity) {
             return
         } catch (t: Throwable) {
             if (!isBackgroundServiceStartBlocked(t)) throw t
-            onLog?.invoke(
-                "※ ${pair.first.shortName()} はバックグラウンド制限で startService 拒否。" +
-                    "bind で前面化して再試行",
-            )
+            onLog?.invoke(text(R.string.log_bg_service_blocked, pair.first.shortName()))
         }
 
         val conn = object : ServiceConnection {
@@ -316,7 +325,7 @@ class ScanEngine(private val activity: Activity) {
         val bound = try {
             activity.bindService(intent, conn, Context.BIND_AUTO_CREATE)
         } catch (t: Throwable) {
-            onLog?.invoke("※ bind 失敗: ${t.javaClass.simpleName}")
+            onLog?.invoke(text(R.string.log_bind_failed, t.javaClass.simpleName))
             false
         }
         handler.postDelayed({
@@ -327,16 +336,13 @@ class ScanEngine(private val activity: Activity) {
             if (bound) {
                 try {
                     activity.startService(intent)
-                    onLog?.invoke("※ bind 後 startService 成功（onStartCommand まで到達）")
+                    onLog?.invoke(text(R.string.log_bind_start_ok))
                 } catch (t: Throwable) {
-                    onLog?.invoke(
-                        "※ bind 後も startService 拒否（${t.javaClass.simpleName}）。" +
-                            "対象がバックグラウンドのため onStartCommand は検証不可",
-                    )
+                    onLog?.invoke(text(R.string.log_bind_start_denied, t.javaClass.simpleName))
                 }
                 runCatching { activity.unbindService(conn) }
             } else {
-                onLog?.invoke("※ Service を起動できません（bind 不可）")
+                onLog?.invoke(text(R.string.log_bind_unavailable))
             }
             scheduleNonActivityCheck(pair, pair.second)
         }, SERVICE_BIND_WAIT_MS)
@@ -474,19 +480,25 @@ class ScanEngine(private val activity: Activity) {
     private fun resolve(pair: Pair<TargetComponent, RecipeType>, hit: Boolean, confidence: HitConfidence) {
         val (comp, recipe) = pair
 
+        val recipeLabel = text(recipe.labelRes)
         val result = Result(
             comp.appLabel, comp.packageName, comp.shortName(), comp.className,
-            comp.appVersion, recipe, recipe.label, hit, confidence,
+            comp.appVersion, recipe, recipeLabel, hit, confidence,
             kind = comp.kind, authority = comp.authority,
         )
         results.add(result)
         if (hit) onHit?.invoke(result)
         val mark = when {
-            confidence == HitConfidence.CONFIRMED -> "確定(クラッシュ死)"
-            hit -> "疑い(即戻り/UsageStats)"
+            confidence == HitConfidence.CONFIRMED -> text(R.string.mark_confirmed)
+            hit -> text(R.string.mark_suspected)
             else -> "----"
         }
-        onLog?.invoke("[結果] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → $mark")
+        onLog?.invoke(
+            text(
+                R.string.log_result, comp.appLabel, comp.shortName(),
+                recipeLabel, mark,
+            ),
+        )
         reportProgress()
 
         // BURST: 以前は効いた HIT が連続で効かなくなったら「効かなくなった」とみなす。

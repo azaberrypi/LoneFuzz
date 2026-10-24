@@ -31,21 +31,30 @@ class AttackEngine(context: Context) {
     @Volatile private var running = false
     private var worker: Thread? = null
 
+    /** 連射開始時の言語。ログはこの言語で固定する。 */
+    @Volatile private var logText: LogText? = null
+
+    private fun text(id: Int, vararg args: Any): String {
+        val lt = logText ?: LogText(appContext, LogText.currentLocale(appContext)).also { logText = it }
+        return lt.get(id, *args)
+    }
+
     fun start(targets: List<TargetComponent>, recipes: List<RecipeType>, listener: Listener) {
         if (running) return
+        logText = LogText(appContext, LogText.currentLocale(appContext))
         if (targets.isEmpty()) {
-            listener.onLog("対象コンポーネントが 0 件です。")
+            listener.onLog(text(R.string.log_no_targets))
             return
         }
         if (recipes.isEmpty()) {
-            listener.onLog("レシピが選択されていません。")
+            listener.onLog(text(R.string.log_no_recipes))
             return
         }
         running = true
         sent.set(0)
         errors.set(0)
         listener.onStats(0, 0)
-        listener.onLog("=== 連射 開始: 対象 ${targets.size} / レシピ ${recipes.size} ===")
+        listener.onLog(text(R.string.log_hold_start, targets.size, recipes.size))
 
         worker = Thread {
             try {
@@ -65,7 +74,7 @@ class AttackEngine(context: Context) {
                     }
                 }
             } finally {
-                listener.onLog("=== 連射 停止 (sent=${sent.get()}, err=${errors.get()}) ===")
+                listener.onLog(text(R.string.log_hold_stop, sent.get(), errors.get()))
             }
         }.also { it.isDaemon = true; it.start() }
     }
@@ -83,19 +92,20 @@ class AttackEngine(context: Context) {
      */
     fun fireBurst(targets: List<TargetComponent>, recipes: List<RecipeType>, listener: Listener) {
         if (running) return
+        logText = LogText(appContext, LogText.currentLocale(appContext))
         if (targets.isEmpty()) {
-            listener.onLog("対象コンポーネントが 0 件です。")
+            listener.onLog(text(R.string.log_no_targets))
             return
         }
         if (recipes.isEmpty()) {
-            listener.onLog("レシピが選択されていません。")
+            listener.onLog(text(R.string.log_no_recipes))
             return
         }
         sent.set(0)
         errors.set(0)
         listener.onStats(0, 0)
         Thread {
-            listener.onLog("=== 単発 burst: 対象 ${targets.size} / レシピ ${recipes.size} ===")
+            listener.onLog(text(R.string.log_shot_start, targets.size, recipes.size))
             for (tc in targets) {
                 for (recipe in recipes) {
                     fireOnce(tc, recipe, listener)
@@ -106,7 +116,7 @@ class AttackEngine(context: Context) {
                     }
                 }
             }
-            listener.onLog("=== 単発 burst 完了 (sent=${sent.get()}, err=${errors.get()}) ===")
+            listener.onLog(text(R.string.log_shot_done, sent.get(), errors.get()))
         }.apply { isDaemon = true }.start()
     }
 
@@ -114,7 +124,8 @@ class AttackEngine(context: Context) {
         // FGS レシピは Service 以外では無意味なのでスキップ。
         if (recipe == RecipeType.FOREGROUND_SERVICE_5S && tc.kind != ComponentKind.SERVICE) return
 
-        val tag = "${tc.kind.name.take(3)} ${short(tc.className)} [${recipe.label}]"
+        val recipeLabel = text(recipe.labelRes)
+        val tag = "${tc.kind.name.take(3)} ${short(tc.className)} [$recipeLabel]"
         try {
             when (tc.kind) {
                 ComponentKind.ACTIVITY -> {
@@ -123,7 +134,7 @@ class AttackEngine(context: Context) {
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     appContext.startActivity(i)
                     val shot = CrashWatcher.FiredShot(
-                        tc.packageName, tc.appLabel, tc.shortName(), recipe.label,
+                        tc.packageName, tc.appLabel, tc.shortName(), recipeLabel,
                     )
                     CrashWatcher.recordFire(shot)
                     CrashWatcher.recordActivityFire(shot)
@@ -134,7 +145,7 @@ class AttackEngine(context: Context) {
                     val i = baseIntent(tc)
                     AttackRecipes.applyPayload(i, recipe)
                     appContext.sendBroadcast(i)
-                    recordShot(tc, recipe)
+                    recordShot(tc, recipeLabel)
                     ok(tag, listener)
                 }
 
@@ -148,7 +159,7 @@ class AttackEngine(context: Context) {
                     } else {
                         appContext.startService(i)
                     }
-                    recordShot(tc, recipe)
+                    recordShot(tc, recipeLabel)
                     ok(tag, listener)
                 }
 
@@ -187,13 +198,13 @@ class AttackEngine(context: Context) {
     private fun baseIntent(tc: TargetComponent): Intent =
         Intent().setComponent(ComponentName(tc.packageName, tc.className))
 
-    private fun recordShot(tc: TargetComponent, recipe: RecipeType) {
+    private fun recordShot(tc: TargetComponent, recipeLabel: String) {
         CrashWatcher.recordFire(
             CrashWatcher.FiredShot(
                 packageName = tc.packageName,
                 appLabel = tc.appLabel,
                 componentShort = tc.shortName(),
-                recipe = recipe.label,
+                recipe = recipeLabel,
             ),
         )
     }

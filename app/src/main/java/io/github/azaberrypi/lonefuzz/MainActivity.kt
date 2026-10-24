@@ -93,13 +93,22 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     /** ログ領域の開閉（既定は閉。対象アプリ一覧のスペースを優先する）。 */
     private var logExpanded = false
 
+    /** 実行中の spray/BURST を開始した時点の言語（ログの言語を固定する）。 */
+    private var runLogText: LogText? = null
+
+    private fun runText(): LogText =
+        runLogText ?: LogText(this, LogText.currentLocale(this)).also { runLogText = it }
+
     private val hitListener = CrashWatcher.HitListener { hit ->
         mainHandler.post {
             // spray/BURST 実行中は ScanEngine が結果と信頼度を一元集計する。
             // ここで数えると二重カウントになるため、手動 SHOT/連射 時のみ数える。
             if (scanEngine.scanning) return@post
             totalHits++
-            val msg = "HIT! ${hit.appLabel} / ${hit.componentShort} [${hit.recipe}] (${hit.kind})"
+            val msg = getString(
+                R.string.log_hit_manual,
+                hit.appLabel, hit.componentShort, hit.recipe, hit.kind,
+            )
             appendLog("[$msg]")
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
             updateStatsDisplay()
@@ -237,12 +246,21 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         scanEngine.onHit = { result ->
             totalHits++
-            val conf = if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) "確定" else "疑い"
-            val msg = "HIT[$conf] ${result.appLabel} / ${result.component} [${result.recipe}]"
+            val t = runText()
+            val conf = if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) {
+                t.get(R.string.conf_confirmed)
+            } else {
+                t.get(R.string.conf_suspected)
+            }
+            val msg = t.get(
+                R.string.log_hit, conf, result.appLabel, result.component,
+                t.get(result.recipeType.labelRes),
+            )
             appendLog("[$msg]")
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         }
         scanEngine.onComplete = { results ->
+            val t = runText()
             if (!scanEngine.bursting) {
                 // spray 完了
                 val hits = results.count { it.hit }
@@ -250,14 +268,19 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 val suspected = results.count { it.confidence == ScanEngine.HitConfidence.SUSPECTED }
                 val apps = results.map { it.packageName }.distinct().size
                 val vulnApps = results.filter { it.hit }.map { it.packageName }.distinct().size
-                appendLog("=== spray完了: $apps アプリ / ${results.size} テスト → $hits HIT ($vulnApps アプリ) | 確定$confirmed / 疑い$suspected ===")
+                appendLog(
+                    t.get(
+                        R.string.log_spray_complete, apps, results.size,
+                        hits, vulnApps, confirmed, suspected,
+                    ),
+                )
                 btnScan.text = getString(R.string.btn_scan)
 
                 lastScanHits = results.filter { it.hit }
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
                 refreshBurstButton()
             } else {
-                appendLog("=== BURST 停止 ===")
+                appendLog(t.get(R.string.log_burst_stop))
                 btnBurst.text = getString(R.string.btn_burst)
                 AttackControl.setStopListener(null)
             }
@@ -266,12 +289,18 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         scanEngine.onCycleComplete = { cycle ->
             burstCycle = cycle
-            appendLog("--- 連射サイクル $cycle 完了（止めるまで継続）---")
+            appendLog(runText().get(R.string.log_cycle_complete, cycle))
         }
         scanEngine.onStaleDetected = { result ->
             // 「効かなくなった」を検知。武器庫からは無効化するが、連射は止めない
             // （通知バー/ボタンで止めるまで継続）。再探索は手動 spray で行う。
-            appendLog("=== 効かなくなった: ${result.appLabel} / ${result.component} [${result.recipe}] を武器庫から無効化（連射は継続。再探索は手動 spray で） ===")
+            val t = runText()
+            appendLog(
+                t.get(
+                    R.string.log_stale, result.appLabel, result.component,
+                    t.get(result.recipeType.labelRes),
+                ),
+            )
             hitStore.remove(result.packageName, result.className, result.recipeType.name)
         }
     }
@@ -280,7 +309,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         if (scanEngine.scanning) {
             scanEngine.stop()
             btnScan.text = getString(R.string.btn_scan)
-            appendLog("=== spray中断 ===")
+            appendLog(runText().get(R.string.log_spray_abort))
             lastScanHits = scanEngine.getHits()
             hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
             refreshBurstButton()
@@ -292,18 +321,21 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     /** spray を開始する共通導線（手動 spray と効果ベース再適応の自動再探索から使う）。 */
     private fun startSpray(targets: List<TargetComponent>, recipes: List<RecipeType>, label: String): Boolean {
         if (scanEngine.scanning) return false
+        // この走査のログは、SPRAY を押した時点の言語で固定する。
+        val t = LogText(this, LogText.currentLocale(this))
+        runLogText = t
         if (!CrashDetectorService.isRunning) {
-            appendLog("sprayにはユーザー補助の有効化が必要です。")
+            appendLog(t.get(R.string.log_need_a11y_spray))
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return false
         }
         // 対象選択は必須（全アプリ無差別 spray は廃止）。
         if (targets.isEmpty()) {
-            appendLog("対象を選択してください（アプリ行のチェック＝全コンポーネント、コンポーネント行タップ＝個別）。")
+            appendLog(t.get(R.string.log_select_target))
             return false
         }
         if (recipes.isEmpty()) {
-            appendLog("レシピが選択されていません。")
+            appendLog(t.get(R.string.log_select_recipe))
             return false
         }
 
@@ -312,19 +344,14 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val s = targets.count { it.kind == ComponentKind.SERVICE }
         val r = targets.count { it.kind == ComponentKind.RECEIVER }
         val p = targets.count { it.kind == ComponentKind.PROVIDER }
-        appendLog(
-            "=== ${label}開始: $appCount アプリ / $a A, $s S, $r R, $p P × ${recipes.size} レシピ ===",
-        )
+        appendLog(t.get(R.string.log_spray_start, label, appCount, a, s, r, p, recipes.size))
         if (s + r + p > 0 && !CrashWatcher.hasDumpPermission(this)) {
-            appendLog(
-                "※ Activity 以外は DUMP 未付与だとダイアログ観測のみで取りこぼしがあります" +
-                    "（確定には DUMP を付与）。",
-            )
+            appendLog(t.get(R.string.log_dump_warning))
         }
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshBurstButton()
         setLogExpanded(true)
-        scanEngine.start(targets, recipes)
+        scanEngine.start(targets, recipes, t)
         return true
     }
 
@@ -334,38 +361,42 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             return
         }
 
+        // BURST のログも開始時点の言語で固定する。
+        val t = LogText(this, LogText.currentLocale(this))
+        runLogText = t
+
         if (lastScanHits.isEmpty()) {
             // 今回の spray が無くても、武器庫に選択対象の HIT があれば再利用する（バージョンは問わない）。
             val pkgs = selectedComponents().map { it.packageName }.distinct()
             if (pkgs.isEmpty()) {
-                appendLog("対象を選択し、spray するか保存済みHITのある対象を選んでください。")
+                appendLog(t.get(R.string.log_burst_need_target))
                 return
             }
             val stored = pkgs.flatMap { hitStore.storedFor(it) }
             if (stored.isEmpty()) {
-                appendLog("選択対象に保存済みHITがありません。先にsprayを実行してください。")
+                appendLog(t.get(R.string.log_burst_no_hits))
                 return
             }
             lastScanHits = HitStore.asResults(stored)
-            appendLog("武器庫から ${lastScanHits.size} 件のHITを読み込みました（最終確認版を保持・版では無効化しません）。")
+            appendLog(t.get(R.string.log_burst_loaded, lastScanHits.size))
         }
 
         if (!CrashDetectorService.isRunning) {
-            appendLog("BURST にはユーザー補助の有効化が必要です。")
+            appendLog(t.get(R.string.log_need_a11y_burst))
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
 
         val hitApps = lastScanHits.map { it.packageName }.distinct().size
         burstCycle = 0
-        appendLog("=== BURST 開始: ${lastScanHits.size} HIT ($hitApps アプリ) — 止めるまで連射を継続 ===")
+        appendLog(t.get(R.string.log_burst_start, lastScanHits.size, hitApps))
         btnBurst.text = getString(R.string.btn_burst_stop)
         setLogExpanded(true)
         startFgs()
         AttackControl.setStopListener {
             mainHandler.post { if (scanEngine.bursting) stopBurst() }
         }
-        scanEngine.startBurst(lastScanHits)
+        scanEngine.startBurst(lastScanHits, t)
         refreshBurstButton()
     }
 
@@ -374,7 +405,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         scanEngine.stop()
         stopFgs()
         btnBurst.text = getString(R.string.btn_burst)
-        appendLog("=== BURST 停止 ===")
+        appendLog(runText().get(R.string.log_burst_stop))
         refreshBurstButton()
         updateStatsDisplay()
     }
@@ -533,8 +564,11 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             val rapidHit = CrashWatcher.checkRapidReturn()
             if (rapidHit != null) {
                 totalHits++
-                val msg = "HIT! ${rapidHit.appLabel} / ${rapidHit.componentShort} [${rapidHit.recipe}]"
-                appendLog("[$msg] (即戻り検知)")
+                val msg = getString(
+                    R.string.log_hit_manual,
+                    rapidHit.appLabel, rapidHit.componentShort, rapidHit.recipe, rapidHit.kind,
+                )
+                appendLog(getString(R.string.log_rapid, msg))
                 Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                 updateStatsDisplay()
             }
@@ -651,7 +685,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     }
 
     private fun enumerate() {
-        appendLog("アプリ列挙中...")
+        appendLog(getString(R.string.log_enumerating))
         Thread {
             val apps = ComponentEnumerator(packageManager).enumerate(excludePackage = packageName)
             mainHandler.post {
@@ -659,12 +693,12 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 cachedApps = apps
                 restoreSelectionState()
                 applyFilter()
-                appendLog("列挙完了: ${apps.size} アプリに exported コンポーネントあり")
+                appendLog(getString(R.string.log_enumerated, apps.size))
                 // アンインストール済みを掃除し、残っている武器庫を通知。
                 hitStore.pruneTo(apps.map { it.packageName }.toSet())
                 val stored = hitStore.count()
                 if (stored > 0) {
-                    appendLog("武器庫: 保存済みHIT $stored 件（対象を選び「BURST」で spray 無しに再利用可）")
+                    appendLog(getString(R.string.log_armory_count, stored))
                 }
                 refreshBurstButton()
             }
