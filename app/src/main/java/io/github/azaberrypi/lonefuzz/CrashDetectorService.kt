@@ -69,8 +69,20 @@ class CrashDetectorService : AccessibilityService() {
             instance?.performGlobalAction(GLOBAL_ACTION_BACK)
         }
 
+        /**
+         * 前面が自アプリか。root が取れないときも true（安全側＝BACK/HOME を撃たない）。
+         * ダイアログが既に消えているのに BACK を撃つと、LoneFuzz 自身が閉じてホームに飛ぶ。
+         */
+        fun isOwnAppForeground(): Boolean {
+            val svc = instance ?: return true
+            val pkg = svc.rootInActiveWindow?.packageName?.toString() ?: return true
+            return pkg == svc.packageName
+        }
+
         fun goHomeAndReturn() {
             val svc = instance ?: return
+            // 前面が自アプリなら戻る必要がない（HOME→復帰のちらつきも避ける）。
+            if (isOwnAppForeground()) return
             // 自前の home 操作が対象を STOP させる＝UsageStats オラクルの偽陽性になる。
             // 発行時刻を記録し、それに説明される STOP を usageDisappearedSince() から除外する。
             CrashWatcher.noteHomeIssued()

@@ -177,7 +177,11 @@ class ScanEngine(private val activity: Activity) {
         // 前のテストで観測したクラッシュ/ANR ダイアログが残っていれば、次を撃つ前に閉じる。
         // 残留ダイアログは次の対象を覆い隠し、検知を混線させる（一括sprayの取りこぼしの主因）。
         if (CrashWatcher.consumeDialogPendingDismiss()) {
-            CrashDetectorService.pressBack()
+            // ダイアログが既に消えて自アプリが前面のときに BACK を撃つと、
+            // LoneFuzz 自身が閉じてホームに飛ぶ。前面が自アプリなら撃たない。
+            if (!CrashDetectorService.isOwnAppForeground()) {
+                CrashDetectorService.pressBack()
+            }
             handler.postDelayed({ fireNext() }, DIALOG_DISMISS_WAIT_MS)
             return
         }
