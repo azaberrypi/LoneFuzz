@@ -170,6 +170,6 @@ used for "detection confidence" and "automation".
 
 LoneFuzz is released under the MIT License. See [LICENSE](LICENSE).
 
-Third-party components bundled in the app are listed in [NOTICE](NOTICE), together with the
-full Apache License 2.0 text. The same notices are bundled inside the APK as
-`assets/LICENSE.txt` and `assets/NOTICE.txt`.
+Third-party components bundled in the app are documented in [NOTICE](NOTICE), which is also
+bundled inside the APK as `assets/NOTICE.txt`. The project's MIT license is bundled as
+`assets/LICENSE.txt`.

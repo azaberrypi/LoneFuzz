@@ -159,6 +159,5 @@ Provider は**プロセスの死**だけを確定とし、呼び出し側に返�
 
 LoneFuzz は MIT License で公開しています。詳細は [LICENSE](LICENSE) を参照してください。
 
-アプリに同梱している第三者コンポーネントは [NOTICE](NOTICE) に、Apache License 2.0 の全文と
-ともに記載しています。同じ内容は APK 内の `assets/LICENSE.txt` / `assets/NOTICE.txt` にも
-同梱しています。
+アプリに同梱している第三者コンポーネントは [NOTICE](NOTICE) に記載しています。
+APK 内では `assets/NOTICE.txt` に同梱し、MIT License は `assets/LICENSE.txt` に同梱しています。
