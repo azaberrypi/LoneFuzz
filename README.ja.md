@@ -145,3 +145,13 @@ UsageStats を優先し、どちらも無い場合に限り即戻りを使いま
 - Activity の持続的な連射は、Android のバックグラウンド起動制限の影響を受けます。
 - BadParcelable は相手が extras を読むまで発火しません（的中率は実装依存）。
 - 検知は現状 Activity が中心です（Service / Receiver / Provider の検知経路は拡張予定）。
+
+---
+
+## ライセンス
+
+LoneFuzz は MIT License で公開しています。詳細は [LICENSE](LICENSE) を参照してください。
+
+アプリに同梱している第三者コンポーネントは [NOTICE](NOTICE) に、Apache License 2.0 の全文と
+ともに記載しています。同じ内容は APK 内の `assets/LICENSE.txt` / `assets/NOTICE.txt` にも
+同梱しています。

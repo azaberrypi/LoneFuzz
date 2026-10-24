@@ -154,3 +154,13 @@ used for "detection confidence" and "automation".
 - Continuous bursting of Activities is affected by Android's background launch restrictions.
 - BadParcelable doesn't fire until the target reads extras (hit rate is implementation-dependent).
 - Detection currently centers on Activities (detection paths for Service / Receiver / Provider are planned).
+
+---
+
+## License
+
+LoneFuzz is released under the MIT License. See [LICENSE](LICENSE).
+
+Third-party components bundled in the app are listed in [NOTICE](NOTICE), together with the
+full Apache License 2.0 text. The same notices are bundled inside the APK as
+`assets/LICENSE.txt` and `assets/NOTICE.txt`.
