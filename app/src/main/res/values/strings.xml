@@ -32,7 +32,7 @@
 
     <string name="tip_spray">選択した対象アプリに、コンポーネント×レシピを総当たりで撃ち、落ちる穴を探す</string>
     <string name="tip_burst">spray で確定した有効なペイロードを、止めるまで連射し続ける</string>
-    <string name="tip_shot">選択中の対象に 1 回だけ撃つ（目視確認用）</string>
+    <string name="tip_shot">選択中の全コンポーネント × 全レシピを1周撃つ（目視確認用）</string>
 
     <string name="detector_off">検知 OFF（タップで有効化）</string>
     <string name="dump_off">DUMP OFF（タップで付与）</string>
@@ -85,8 +85,9 @@
     <string name="log_hold_start">=== 連射 開始: 対象 %1$d / レシピ %2$d ===</string>
     <string name="log_hold_stop">=== 連射 停止 (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
-    <string name="log_shot_start">=== 単発 burst: 対象 %1$d / レシピ %2$d ===</string>
-    <string name="log_shot_done">=== 単発 burst 完了 (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_start">=== SHOT: %1$d 対象 × %2$d レシピを1周 ===</string>
+    <string name="log_shot_done">=== SHOT 完了 (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_busy">SHOT は実行中です。完了まで待ってください。</string>
 
     <!-- 実行中通知 -->
     <string name="notif_channel_attack">攻撃実行</string>

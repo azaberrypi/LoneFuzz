@@ -29,6 +29,7 @@ class AttackEngine(context: Context) {
     private val errors = AtomicInteger(0)
 
     @Volatile private var running = false
+    @Volatile private var shotRunning = false
     private var worker: Thread? = null
 
     /** 連射開始時の言語。ログはこの言語で固定する。 */
@@ -91,8 +92,12 @@ class AttackEngine(context: Context) {
      * （前景からの最初の startActivity は BAL 制限を通るため）。
      */
     fun fireBurst(targets: List<TargetComponent>, recipes: List<RecipeType>, listener: Listener) {
-        if (running) return
         logText = LogText(appContext, LogText.currentLocale(appContext))
+        if (running) return
+        if (shotRunning) {
+            listener.onLog(text(R.string.log_shot_busy))
+            return
+        }
         if (targets.isEmpty()) {
             listener.onLog(text(R.string.log_no_targets))
             return
@@ -104,19 +109,24 @@ class AttackEngine(context: Context) {
         sent.set(0)
         errors.set(0)
         listener.onStats(0, 0)
+        shotRunning = true
         Thread {
-            listener.onLog(text(R.string.log_shot_start, targets.size, recipes.size))
-            for (tc in targets) {
-                for (recipe in recipes) {
-                    fireOnce(tc, recipe, listener)
-                    try {
-                        Thread.sleep(50)
-                    } catch (ie: InterruptedException) {
-                        return@Thread
+            try {
+                listener.onLog(text(R.string.log_shot_start, targets.size, recipes.size))
+                for (tc in targets) {
+                    for (recipe in recipes) {
+                        fireOnce(tc, recipe, listener)
+                        try {
+                            Thread.sleep(50)
+                        } catch (ie: InterruptedException) {
+                            return@Thread
+                        }
                     }
                 }
+                listener.onLog(text(R.string.log_shot_done, sent.get(), errors.get()))
+            } finally {
+                shotRunning = false
             }
-            listener.onLog(text(R.string.log_shot_done, sent.get(), errors.get()))
         }.apply { isDaemon = true }.start()
     }
 

@@ -32,7 +32,7 @@
 
     <string name="tip_spray">Fire every component × recipe at the selected apps and look for crash holes</string>
     <string name="tip_burst">Keep re-firing the payloads confirmed by spray until you stop</string>
-    <string name="tip_shot">Fire once at the selection (for visual confirmation)</string>
+    <string name="tip_shot">Fire one pass over all selected components × recipes (visual check)</string>
 
     <string name="detector_off">Detector OFF (tap to enable)</string>
     <string name="dump_off">DUMP OFF (tap to grant)</string>
@@ -85,8 +85,9 @@
     <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
     <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">Cannot SHOT while SPRAY/BURST is running. Stop it first.</string>
-    <string name="log_shot_start">=== single burst: %1$d targets / %2$d recipes ===</string>
-    <string name="log_shot_done">=== single burst done (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_start">=== SHOT: one pass over %1$d targets × %2$d recipes ===</string>
+    <string name="log_shot_done">=== SHOT done (sent=%1$d, err=%2$d) ===</string>
+    <string name="log_shot_busy">SHOT is already running. Wait for it to finish.</string>
 
     <!-- Run notification -->
     <string name="notif_channel_attack">Attack run</string>
