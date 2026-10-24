@@ -1,6 +1,7 @@
 package io.github.azaberrypi.lonefuzz
 
 import android.content.Context
+import io.github.azaberrypi.lonefuzz.model.ComponentKind
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -25,6 +26,8 @@ class HitStore(context: Context) {
         val className: String,
         val recipeName: String,
         val confidence: String,
+        val kind: ComponentKind = ComponentKind.ACTIVITY,
+        val authority: String? = null,
     )
 
     private val prefs = context.applicationContext
@@ -39,6 +42,9 @@ class HitStore(context: Context) {
                 Entry(
                     o.getString("pkg"), o.optString("label"), o.optString("ver"),
                     o.getString("cls"), o.getString("recipe"), o.optString("conf", "SUSPECTED"),
+                    kind = runCatching { ComponentKind.valueOf(o.optString("kind", "ACTIVITY")) }
+                        .getOrDefault(ComponentKind.ACTIVITY),
+                    authority = o.optString("auth", "").ifEmpty { null },
                 )
             }.filter { it.confidence == ScanEngine.HitConfidence.CONFIRMED.name }
         } catch (_: Throwable) {
@@ -53,6 +59,8 @@ class HitStore(context: Context) {
                 JSONObject().apply {
                     put("pkg", e.packageName); put("label", e.appLabel); put("ver", e.appVersion)
                     put("cls", e.className); put("recipe", e.recipeName); put("conf", e.confidence)
+                    put("kind", e.kind.name)
+                    if (e.authority != null) put("auth", e.authority)
                 },
             )
         }
@@ -72,7 +80,10 @@ class HitStore(context: Context) {
             // 既存が CONFIRMED のとき、SUSPECTED で上書きしない。
             if (existing?.confidence == "CONFIRMED" && conf != "CONFIRMED") continue
             // 版はメタ情報として最新値に更新する（版での無効化はしない）。
-            map[k] = Entry(h.packageName, h.appLabel, h.appVersion, h.className, h.recipeType.name, conf)
+            map[k] = Entry(
+                h.packageName, h.appLabel, h.appVersion, h.className, h.recipeType.name, conf,
+                kind = h.kind, authority = h.authority,
+            )
         }
         save(map.values.toList())
     }
@@ -119,6 +130,8 @@ class HitStore(context: Context) {
                 recipe = recipe.label,
                 hit = true,
                 confidence = confidence,
+                kind = e.kind,
+                authority = e.authority,
             )
         }
     }

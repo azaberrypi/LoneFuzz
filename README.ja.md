@@ -40,7 +40,7 @@ Android 11 以降は他アプリの情報取得が制限されているため、
 | TooLarge（既定オフ・重い） | `payload` キーに 2MB の byte 配列（Binder トランザクション上限 ≒1MB を超過） | TransactionTooLargeException |
 | 不正 URI | `data` に存在しない content:// / file:// の URI を入れる | FileNotFoundException 等 |
 | BadParcelable | 共通キー全てに、相手プロセスに存在しない自作 Parcelable を入れる（相手が extras を読み込んだ瞬間に発火） | BadParcelableException |
-| FGS 5秒ルール | Service を extras 無しで `startForegroundService` 起動（Service のみ対象） | 5秒以内に `startForeground()` されず ANR / RemoteServiceException |
+| FGS 5秒ルール | Service を extras 無しで `startForegroundService` 起動（Service のみ対象） | 5秒以内に `startForeground()` されず、約30秒後に `RemoteServiceException`（クラッシュダイアログは出ない） |
 
 > 文字列／数値キーへの入れ替えは「どちらを読んでも型アンマッチになる」よう双方向に仕込みます。
 > 共通キーは汎用 extras 名のリスト（id, url, uri, data, key, value, name, title, type,
@@ -49,7 +49,8 @@ Android 11 以降は他アプリの情報取得が制限されているため、
 
 発火方法はコンポーネント種別ごとに、Activity は `startActivity`、Receiver は
 `sendBroadcast`、Service は `startService` / `startForegroundService`、
-Provider は `ContentResolver` 経由の query / insert です。
+Provider は `ContentResolver` 経由の query を**隔離した `:probe` プロセス**から行います
+（Provider が落ちると query した側のプロセスも道連れになるため、probe を犠牲にします）。
 
 ### 3. Detection
 
@@ -79,6 +80,12 @@ UsageStats を優先し、どちらも無い場合に限り即戻りを使いま
 | NONE | どの信号も無し（非該当） | — |
 
 結果は「アプリ名 / バージョン / コンポーネント / レシピ / 信頼度」の形で出力できます。
+
+Activity 以外は時間ベースで判定します。発火直後と少し後の2回、対象が発火以降に死んだかを
+終了理由へ問い合わせます。バックグラウンドの相手への `startService` は Android に拒否される
+（`BackgroundServiceStartNotAllowedException`）ため、`bindService` で対象を起こしてから
+再試行します。FGS 違反は約30秒後にクラッシュとして現れるので、このレシピだけ31秒待ちます。
+Provider は**プロセスの死**だけを確定とし、呼び出し側に返る例外は正常な拒否として扱います。
 
 ### 4. Burst
 
@@ -144,7 +151,7 @@ UsageStats を優先し、どちらも無い場合に限り即戻りを使いま
   DUMP 付与時の終了理由照会がこれを補い、初回クラッシュや静かなクラッシュも確定できます。
 - Activity の持続的な連射は、Android のバックグラウンド起動制限の影響を受けます。
 - BadParcelable は相手が extras を読むまで発火しません（的中率は実装依存）。
-- 検知は現状 Activity が中心です（Service / Receiver / Provider の検知経路は拡張予定）。
+- Service / Receiver / Provider に対応しましたが、Activity 以外の確定には終了理由（DUMP）またはクラッシュダイアログが必要です。呼び出し側に例外を返すだけの Provider は HIT にしません。
 
 ---
 

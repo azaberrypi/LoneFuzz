@@ -73,6 +73,12 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Provider は対象プロセス死時にクライアントも道連れになるため別プロセスで撃つ。 -->
+        <service
+            android:name=".ProviderProbeService"
+            android:exported="false"
+            android:process=":probe" />
+
         <receiver
             android:name=".StopBurstReceiver"
             android:exported="false" />

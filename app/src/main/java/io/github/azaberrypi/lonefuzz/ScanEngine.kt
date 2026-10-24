@@ -5,7 +5,10 @@ import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Build
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import io.github.azaberrypi.lonefuzz.model.ComponentKind
 import io.github.azaberrypi.lonefuzz.model.TargetComponent
@@ -33,6 +36,8 @@ class ScanEngine(private val activity: Activity) {
         val recipe: String,
         val hit: Boolean,
         val confidence: HitConfidence = HitConfidence.NONE,
+        val kind: ComponentKind = ComponentKind.ACTIVITY,
+        val authority: String? = null,
     )
 
     private val handler = Handler(Looper.getMainLooper())
@@ -82,14 +87,22 @@ class ScanEngine(private val activity: Activity) {
         queue.clear()
         burstMisses.clear()
 
-        val activities = components.filter {
-            it.kind == ComponentKind.ACTIVITY && !isSystemPackage(it.packageName)
-        }
-        for (comp in activities) {
+        val targets = components.filter { !isSystemPackage(it.packageName) }
+        var skipped = 0
+        for (comp in targets) {
             for (recipe in recipes) {
-                if (recipe == RecipeType.FOREGROUND_SERVICE_5S) continue
+                if (!isRecipeApplicable(comp.kind, recipe)) {
+                    skipped++
+                    continue
+                }
                 queue.addLast(comp to recipe)
             }
+        }
+        if (skipped > 0) {
+            onLog?.invoke(
+                "※ このコンポーネント種別では意味のない組み合わせ $skipped 件をスキップ" +
+                    "（FGS は Service のみ / Provider は空Intent のみ）",
+            )
         }
         totalCount = queue.size
         if (totalCount == 0) {
@@ -118,7 +131,8 @@ class ScanEngine(private val activity: Activity) {
             TargetComponent(
                 packageName = h.packageName,
                 className = h.className,
-                kind = ComponentKind.ACTIVITY,
+                kind = h.kind,
+                authority = h.authority,
                 appLabel = h.appLabel,
                 appVersion = h.appVersion,
             ) to h.recipeType
@@ -173,35 +187,207 @@ class ScanEngine(private val activity: Activity) {
         val (comp, recipe) = pair
 
         try {
-            val intent = Intent().apply {
-                component = ComponentName(comp.packageName, comp.className)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            AttackRecipes.applyPayload(intent, recipe)
-
             val shot = CrashWatcher.FiredShot(
                 comp.packageName, comp.appLabel, comp.shortName(), recipe.label,
             )
             CrashWatcher.recordFire(shot)
-            CrashWatcher.recordActivityFire(shot)
+            if (comp.kind == ComponentKind.ACTIVITY) CrashWatcher.recordActivityFire(shot)
 
-            onLog?.invoke("[発射] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → ${comp.packageName}")
+            onLog?.invoke(
+                "[発射] ${comp.appLabel} / ${comp.shortName()} " +
+                    "[${kindTag(comp.kind)} ${recipe.label}] → ${comp.packageName}",
+            )
             fireTime = System.currentTimeMillis()
-            activity.startActivity(intent)
 
-            handler.postDelayed(backPress, TIMEOUT_MS)
+            when (comp.kind) {
+                ComponentKind.ACTIVITY -> {
+                    val intent = Intent().apply {
+                        component = ComponentName(comp.packageName, comp.className)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    AttackRecipes.applyPayload(intent, recipe)
+                    activity.startActivity(intent)
+                    // 前面に出た Activity が戻ってこない場合の保険（HOME 経由で自アプリへ戻す）。
+                    handler.postDelayed(backPress, TIMEOUT_MS)
+                }
+
+                ComponentKind.SERVICE -> {
+                    val intent = intentFor(comp, recipe)
+                    if (recipe == RecipeType.FOREGROUND_SERVICE_5S &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ) {
+                        activity.startForegroundService(intent)
+                        scheduleNonActivityCheck(pair, recipe)
+                    } else {
+                        startServiceOrBind(pair, intent)
+                    }
+                }
+
+                ComponentKind.RECEIVER -> {
+                    activity.sendBroadcast(intentFor(comp, recipe))
+                    scheduleNonActivityCheck(pair, recipe)
+                }
+
+                ComponentKind.PROVIDER -> {
+                    fireProvider(comp)
+                    scheduleNonActivityCheck(pair, recipe)
+                }
+            }
         } catch (t: Throwable) {
-            onLog?.invoke("[発射失敗] ${comp.appLabel} / ${comp.shortName()} [${recipe.label}] → ${t.javaClass.simpleName}")
+            onLog?.invoke(
+                "[発射失敗] ${comp.appLabel} / ${comp.shortName()} " +
+                    "[${kindTag(comp.kind)} ${recipe.label}] → ${t.javaClass.simpleName}",
+            )
             results.add(
                 Result(
                     comp.appLabel, comp.packageName, comp.shortName(), comp.className,
                     comp.appVersion, recipe, recipe.label, hit = false,
                     confidence = HitConfidence.NONE,
+                    kind = comp.kind, authority = comp.authority,
                 ),
             )
             reportProgress()
             handler.post { fireNext() }
         }
+    }
+
+    /** Activity 以外へ送る Intent（extras を付与）。 */
+    private fun intentFor(comp: TargetComponent, recipe: RecipeType): Intent =
+        Intent().apply {
+            component = ComponentName(comp.packageName, comp.className)
+            AttackRecipes.applyPayload(this, recipe)
+        }
+
+    /**
+     * Provider は別プロセス（`:probe`）から撃つ。
+     *
+     * 対象 Provider のプロセスが死ぬと、query したクライアントプロセスも
+     * DEPENDENCY DIED（reason=12）で殺される。本体から撃つと LoneFuzz 自身が落ちて
+     * 観測できないため、隔離したプローブに投げる。判定は本体が対象パッケージの
+     * 終了理由で行う（query が返す例外自体は HIT にしない）。
+     */
+    private fun fireProvider(comp: TargetComponent) {
+        val authority = comp.authority
+        if (authority.isNullOrEmpty()) {
+            onLog?.invoke("[発射注意] ${comp.appLabel} / ${comp.shortName()} → authority 不明")
+            return
+        }
+        val intent = Intent(activity, ProviderProbeService::class.java).apply {
+            putExtra(ProviderProbeService.EXTRA_AUTHORITY, authority)
+            putExtra(ProviderProbeService.EXTRA_PACKAGE, comp.packageName)
+        }
+        try {
+            activity.startService(intent)
+        } catch (t: Throwable) {
+            onLog?.invoke(
+                "[発射注意] ${comp.shortName()} probe 起動失敗 → ${t.javaClass.simpleName}",
+            )
+        }
+    }
+
+    /**
+     * Android 8+ は「バックグラウンドのアプリの Service」を startService で起動できない
+     * （対象アプリ基準の制限。`BackgroundServiceStartNotAllowedException`）。
+     * 先に bindService で対象プロセスを前面扱い（BOUND_TOP）にしてから startService を
+     * 再試行すると通ることがあるため、その経路を試す。bind 自体が拒否された場合は
+     * onStartCommand を叩けないので NONE として続行する（onCreate/onBind の死は検知できる）。
+     */
+    private fun startServiceOrBind(pair: Pair<TargetComponent, RecipeType>, intent: Intent) {
+        try {
+            activity.startService(intent)
+            scheduleNonActivityCheck(pair, pair.second)
+            return
+        } catch (t: Throwable) {
+            if (!isBackgroundServiceStartBlocked(t)) throw t
+            onLog?.invoke(
+                "※ ${pair.first.shortName()} はバックグラウンド制限で startService 拒否。" +
+                    "bind で前面化して再試行",
+            )
+        }
+
+        val conn = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) = Unit
+            override fun onServiceDisconnected(name: ComponentName?) = Unit
+        }
+        val bound = try {
+            activity.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+        } catch (t: Throwable) {
+            onLog?.invoke("※ bind 失敗: ${t.javaClass.simpleName}")
+            false
+        }
+        handler.postDelayed({
+            if (!scanning || current !== pair) {
+                if (bound) runCatching { activity.unbindService(conn) }
+                return@postDelayed
+            }
+            if (bound) {
+                try {
+                    activity.startService(intent)
+                    onLog?.invoke("※ bind 後 startService 成功（onStartCommand まで到達）")
+                } catch (t: Throwable) {
+                    onLog?.invoke(
+                        "※ bind 後も startService 拒否（${t.javaClass.simpleName}）。" +
+                            "対象がバックグラウンドのため onStartCommand は検証不可",
+                    )
+                }
+                runCatching { activity.unbindService(conn) }
+            } else {
+                onLog?.invoke("※ Service を起動できません（bind 不可）")
+            }
+            scheduleNonActivityCheck(pair, pair.second)
+        }, SERVICE_BIND_WAIT_MS)
+    }
+
+    private fun isBackgroundServiceStartBlocked(t: Throwable): Boolean =
+        t.javaClass.simpleName == "BackgroundServiceStartNotAllowedException"
+
+    /**
+     * Activity 以外は onResume が来ないため、固定時間後に終了理由/ダイアログだけで判定する。
+     * FGS は 30 秒後の RemoteServiceException まで待つ必要があるので長めに取る。
+     */
+    private fun scheduleNonActivityCheck(pair: Pair<TargetComponent, RecipeType>, recipe: RecipeType) {
+        // まず即死系（onCreate/onStartCommand での例外）を早期に拾う。
+        handler.postDelayed({
+            if (!scanning || current !== pair) return@postDelayed
+            if (confirmedNow(pair.first)) {
+                current = null
+                resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
+                return@postDelayed
+            }
+            // 即死していなければ、FGS は約 30 秒後の RemoteServiceException まで待つ
+            // （ダイアログは出ないため終了理由でのみ確定できる）。
+            // それ以外は終了理由の記録遅延を吸収する程度でもう一段待って最終判定する。
+            val extra = if (recipe == RecipeType.FOREGROUND_SERVICE_5S) {
+                (FGS_WAIT_MS - NON_ACTIVITY_WAIT_MS).coerceAtLeast(USAGE_VERIFY_DELAY_MS)
+            } else {
+                USAGE_VERIFY_DELAY_MS
+            }
+            handler.postDelayed({
+                if (!scanning || current !== pair) return@postDelayed
+                current = null
+                val confirmed = confirmedNow(pair.first)
+                resolve(
+                    pair,
+                    hit = confirmed,
+                    confidence = if (confirmed) HitConfidence.CONFIRMED else HitConfidence.NONE,
+                )
+            }, extra)
+        }, NON_ACTIVITY_WAIT_MS)
+    }
+
+    private fun kindTag(kind: ComponentKind): String = when (kind) {
+        ComponentKind.ACTIVITY -> "A"
+        ComponentKind.SERVICE -> "S"
+        ComponentKind.RECEIVER -> "R"
+        ComponentKind.PROVIDER -> "P"
+    }
+
+    /** レシピがそのコンポーネント種別で意味を持つか。 */
+    private fun isRecipeApplicable(kind: ComponentKind, recipe: RecipeType): Boolean = when (recipe) {
+        RecipeType.FOREGROUND_SERVICE_5S -> kind == ComponentKind.SERVICE
+        // Provider は ContentResolver 経由の query になるため、どのレシピも同じ撃ち方になる。
+        // 重複を避けて空Intent の 1 回だけ撃つ。
+        else -> kind != ComponentKind.PROVIDER || recipe == RecipeType.EMPTY
     }
 
     private fun finishRun() {
@@ -215,6 +401,8 @@ class ScanEngine(private val activity: Activity) {
         handler.removeCallbacks(backPress)
 
         val pair = current ?: return
+        // Activity 以外の判定は scheduleNonActivityCheck が行う（onResume では判定しない）。
+        if (pair.first.kind != ComponentKind.ACTIVITY) return
         current = null
         val (comp, recipe) = pair
 
@@ -285,6 +473,7 @@ class ScanEngine(private val activity: Activity) {
         val result = Result(
             comp.appLabel, comp.packageName, comp.shortName(), comp.className,
             comp.appVersion, recipe, recipe.label, hit, confidence,
+            kind = comp.kind, authority = comp.authority,
         )
         results.add(result)
         if (hit) onHit?.invoke(result)
@@ -386,7 +575,7 @@ class ScanEngine(private val activity: Activity) {
                     r.hit -> "HIT?"
                     else -> "----"
                 }
-                appendLine("[$mark] ${r.appLabel} / ${r.component} [${r.recipe}]")
+                appendLine("[${kindTag(r.kind)}][$mark] ${r.appLabel} / ${r.component} [${r.recipe}]")
             }
             appendLine()
             appendLine("凡例: HIT*=クラッシュ確定(crash死/dlg) / HIT?=即戻りのみ(要確認)")
@@ -408,6 +597,20 @@ class ScanEngine(private val activity: Activity) {
 
         /** 残留クラッシュダイアログを閉じてから次を撃つまでの待ち。 */
         private const val DIALOG_DISMISS_WAIT_MS = 500L
+
+        /** Activity 以外（Service/Receiver/Provider）を撃ってから判定するまでの待ち。 */
+        private const val NON_ACTIVITY_WAIT_MS = 2_000L
+
+        /**
+         * FGS 5秒ルール違反は ANR ダイアログではなく、約 30 秒後に
+         * RemoteServiceException(ForegroundServiceDidNotStartInTimeException) で
+         * プロセスがクラッシュする（実測: Pixel 7a / Android 17, anrInfo=null）。
+         * 終了理由でのみ確定できるため、30 秒 + 余裕を待つ。FGS レシピは既定オフ。
+         */
+        private const val FGS_WAIT_MS = 31_000L
+
+        /** bindService で対象を前面扱いにしてから startService を再試行するまでの待ち。 */
+        private const val SERVICE_BIND_WAIT_MS = 600L
 
         private val SKIP_PREFIXES = listOf(
             "com.google.",

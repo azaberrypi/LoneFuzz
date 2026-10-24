@@ -42,7 +42,7 @@ correct input (extras / data)."
 | TooLarge (off by default, heavy) | Puts a 2 MB byte array under the `payload` key (exceeds the Binder transaction limit of ≈1 MB) | TransactionTooLargeException |
 | Invalid URI | Puts a nonexistent content:// / file:// URI into `data` | FileNotFoundException, etc. |
 | BadParcelable | Puts a custom Parcelable absent from the target process into every common key (fires the moment the target reads extras) | BadParcelableException |
-| FGS 5-second rule | Starts a Service with `startForegroundService` and no extras (Service only) | ANR / RemoteServiceException if `startForeground()` isn't called within 5 seconds |
+| FGS 5-second rule | Starts a Service with `startForegroundService` and no extras (Service only) | `RemoteServiceException` about 30 s later if `startForeground()` isn't called within 5 seconds (no crash dialog) |
 
 > String/number swaps are planted bidirectionally so that reading either way yields a
 > type mismatch. The common keys are a list of generic extras names (id, url, uri, data,
@@ -51,7 +51,8 @@ correct input (extras / data)."
 
 The firing method depends on the component kind: Activity uses `startActivity`, Receiver
 uses `sendBroadcast`, Service uses `startService` / `startForegroundService`, and Provider
-uses `query` / `insert` via `ContentResolver`.
+uses `query` via `ContentResolver` from an isolated `:probe` process (a provider crash takes
+its client process down too, so the probe is the expendable part).
 
 ### 3. Detection
 
@@ -83,6 +84,14 @@ rapid return is used only when neither oracle is available.
 | NONE | No signal matched (not applicable) | — |
 
 Results can be exported as "app name / version / component / recipe / confidence".
+
+For non-Activity components the check is purely time-based: right after firing, and again
+after a short delay, LoneFuzz asks the exit oracle whether the target died since the shot.
+Android rejects `startService` to a background target (`BackgroundServiceStartNotAllowedException`);
+LoneFuzz retries after `bindService`, which brings the target up far enough for the start to
+go through. An FGS violation only surfaces as a crash about 30 seconds later, so that recipe
+waits 31 seconds. Provider support confirms **process death** only: an exception thrown back
+to the caller is a normal rejection, not a hit.
 
 ### 4. Burst
 
@@ -153,7 +162,7 @@ used for "detection confidence" and "automation".
   confirming first crashes and silent crashes as well.
 - Continuous bursting of Activities is affected by Android's background launch restrictions.
 - BadParcelable doesn't fire until the target reads extras (hit rate is implementation-dependent).
-- Detection currently centers on Activities (detection paths for Service / Receiver / Provider are planned).
+- Service / Receiver / Provider are supported, but non-Activity hits can only be confirmed via the exit oracle (DUMP) or a crash dialog. A provider that merely throws back to the caller is not counted.
 
 ---
 

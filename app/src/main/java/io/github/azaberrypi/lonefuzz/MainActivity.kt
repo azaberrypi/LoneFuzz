@@ -281,13 +281,20 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             return false
         }
 
-        val activityCount = targets.count { it.kind == ComponentKind.ACTIVITY }
-        if (activityCount == 0) {
-            appendLog("選択内に exported Activity がありません（現状 spray は Activity 対象）。")
-            return false
-        }
         val appCount = targets.map { it.packageName }.distinct().size
-        appendLog("=== ${label}開始: $appCount アプリ / $activityCount Activity × ${recipes.size} レシピ ===")
+        val a = targets.count { it.kind == ComponentKind.ACTIVITY }
+        val s = targets.count { it.kind == ComponentKind.SERVICE }
+        val r = targets.count { it.kind == ComponentKind.RECEIVER }
+        val p = targets.count { it.kind == ComponentKind.PROVIDER }
+        appendLog(
+            "=== ${label}開始: $appCount アプリ / $a A, $s S, $r R, $p P × ${recipes.size} レシピ ===",
+        )
+        if (s + r + p > 0 && !CrashWatcher.hasDumpPermission(this)) {
+            appendLog(
+                "※ Activity 以外は DUMP 未付与だとダイアログ観測のみで取りこぼしがあります" +
+                    "（確定には DUMP を付与）。",
+            )
+        }
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshBurstButton()
         setLogExpanded(true)
