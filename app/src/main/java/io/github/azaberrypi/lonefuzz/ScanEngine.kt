@@ -221,8 +221,12 @@ class ScanEngine(private val activity: Activity) {
         // 3 系統の信号を統合して HIT と信頼度を決める:
         //  - confirmed: 発火後にクラッシュ死を観測。ApplicationExitInfo(=REASON_CRASH, DUMP) を
         //    第一とし、Accessibility のクラッシュ/ANR ダイアログも同格の確定ソースとする。
-        //  - rapidReturn: 対象 Activity が <1.5s で消え、こちらへ即戻った（補助信号）。
-        //  - usage: 上記どちらも無い場合、UsageStats で「発火後に対象が説明なく消えた」。
+        //  - usage: DUMP が無く使用アクセスがある場合の補助信号（RESUMED→説明不能な STOP）。
+        //  - rapidReturn: 上記いずれも使えない場合のみの最終手段（即戻り）。
+        //
+        // 誤検知抑制のため、判定は「確度の高い信号から順に採用し、下位信号は上位が
+        // 使えないときだけ使う」。特に DUMP 付与時は終了理由が地面の真実なので、
+        // クラッシュ未観測なら SUSPECTED を出さず NONE とする（トランポリン等の誤検知を排除）。
         val elapsed = System.currentTimeMillis() - fireTime
         val rapidReturn = elapsed < HIT_THRESHOLD_MS
         CrashWatcher.checkRapidReturn() // lastActivityShot を消費（状態クリア用）
@@ -233,30 +237,46 @@ class ScanEngine(private val activity: Activity) {
         // 少し待ってから確定を再確認し、観測できていれば CONFIRMED に昇格する。
         handler.postDelayed({
             if (!scanning) return@postDelayed
-            val confirmed = CrashWatcher.exitCrashSince(activity, comp.packageName, fireTime) ||
-                CrashWatcher.confirmedCrashSince(comp.packageName, fireTime)
-            when {
-                confirmed ->
-                    resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
-
-                rapidReturn ->
-                    resolve(pair, hit = true, confidence = HitConfidence.SUSPECTED)
-
-                !CrashWatcher.hasUsageAccess(activity) ->
-                    resolve(pair, hit = false, confidence = HitConfidence.NONE)
-
-                else -> handler.postDelayed({
-                    if (!scanning) return@postDelayed
-                    val usage = CrashWatcher.usageDisappearedSince(comp.packageName, fireTime, activity)
-                    resolve(
-                        pair,
-                        hit = usage,
-                        confidence = if (usage) HitConfidence.SUSPECTED else HitConfidence.NONE,
-                    )
-                }, USAGE_VERIFY_DELAY_MS)
+            if (confirmedNow(comp)) {
+                resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
+                return@postDelayed
             }
+            // 終了理由の記録遅延を吸収するため、もう一段待ってから最終判定する。
+            handler.postDelayed({
+                if (!scanning) return@postDelayed
+                when {
+                    confirmedNow(comp) ->
+                        resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
+
+                    // DUMP 付与時: 終了理由が真実。クラッシュ死が無い＝誤検知として捨てる。
+                    CrashWatcher.hasExitOracle(activity) ->
+                        resolve(pair, hit = false, confidence = HitConfidence.NONE)
+
+                    // 使用アクセスがある場合: 前景に出てから説明なく消えた場合のみ疑い。
+                    CrashWatcher.hasUsageAccess(activity) -> {
+                        val usage = CrashWatcher.usageDisappearedSince(comp.packageName, fireTime, activity)
+                        resolve(
+                            pair,
+                            hit = usage,
+                            confidence = if (usage) HitConfidence.SUSPECTED else HitConfidence.NONE,
+                        )
+                    }
+
+                    // どちらの oracle も無い場合のみ、即戻りを最終手段として使う。
+                    rapidReturn ->
+                        resolve(pair, hit = true, confidence = HitConfidence.SUSPECTED)
+
+                    else ->
+                        resolve(pair, hit = false, confidence = HitConfidence.NONE)
+                }
+            }, USAGE_VERIFY_DELAY_MS)
         }, CONFIRM_WAIT_MS)
     }
+
+    /** 発火以降にクラッシュ死（終了理由 or ダイアログ）を観測できているか。 */
+    private fun confirmedNow(comp: TargetComponent): Boolean =
+        CrashWatcher.exitCrashSince(activity, comp.packageName, fireTime) ||
+            CrashWatcher.confirmedCrashSince(comp.packageName, fireTime)
 
     /** 1 テストの結果確定と締め切り処理（記録/通報/次の発火）。 */
     private fun resolve(pair: Pair<TargetComponent, RecipeType>, hit: Boolean, confidence: HitConfidence) {

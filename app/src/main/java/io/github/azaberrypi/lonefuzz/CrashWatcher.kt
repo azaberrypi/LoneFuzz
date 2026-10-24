@@ -172,6 +172,14 @@ object CrashWatcher {
         context.checkSelfPermission(android.Manifest.permission.DUMP) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
+    /**
+     * 終了理由オラクルが実際に使えるか（API 30+ かつ DUMP 付与）。
+     * API 29 以前は getHistoricalProcessExitReasons が無いため、DUMP があっても
+     * 「クラッシュ未観測＝NONE」の断定には使わない。
+     */
+    fun hasExitOracle(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && hasDumpPermission(context)
+
     /** UsageStats ステータス（PACKAGE_USAGE_STATS は AppOps 経由でユーザー付与）。 */
     @Suppress("DEPRECATION")
     fun hasUsageAccess(context: Context): Boolean = runCatching {

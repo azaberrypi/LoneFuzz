@@ -5,7 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 確定/疑いの HIT を端末内に永続化する簡易ストア（武器庫）。
+ * 確定(CONFIRMED)した HIT のみを端末内に永続化する簡易ストア（武器庫）。
+ * 疑い(SUSPECTED)は誤検知を含みうるため保存しない（BURST で撃たない）。
  *
  * キーは (packageName, className, recipe)。**バージョンでは無効化しない**。
  * - アプリのバージョンは「最後に有効と確認した版」としてメタ情報で保持するだけ（レポート再現性用）。
@@ -39,7 +40,7 @@ class HitStore(context: Context) {
                     o.getString("pkg"), o.optString("label"), o.optString("ver"),
                     o.getString("cls"), o.getString("recipe"), o.optString("conf", "SUSPECTED"),
                 )
-            }
+            }.filter { it.confidence == ScanEngine.HitConfidence.CONFIRMED.name }
         } catch (_: Throwable) {
             emptyList()
         }
@@ -60,7 +61,7 @@ class HitStore(context: Context) {
 
     /** spray/BURST の HIT を追記保存（同一キーは上書き。CONFIRMED は SUSPECTED に優先）。 */
     fun record(hits: List<ScanEngine.Result>) {
-        val incoming = hits.filter { it.hit }
+        val incoming = hits.filter { it.hit && it.confidence == ScanEngine.HitConfidence.CONFIRMED }
         if (incoming.isEmpty()) return
         val map = LinkedHashMap<String, Entry>()
         for (e in load()) map[key(e.packageName, e.className, e.recipeName)] = e

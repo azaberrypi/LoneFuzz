@@ -62,7 +62,7 @@ asynchronously in the target process, LoneFuzz determines the "effective payload
 | Signal | Mechanism | Target components | Main weakness |
 |---|---|---|---|
 | **Crash/ANR dialog observation** | The accessibility service observes the system's "has stopped" / "isn't responding" dialogs and matches them against the fire records from the last 8 seconds | All kinds (anything fired) | Wording varies by OS, language, and vendor. "Silent crashes" aren't caught |
-| **Rapid return** | If the target Activity disappears within 1.5 seconds and returns to our app, it's a suspected effective payload | Activity only | False-positives on Activities that `finish()` immediately or return right after a permission prompt |
+| **Rapid return** (last resort) | If the target Activity disappears within 1.5 seconds and returns to our app, it's a suspected effective payload | Activity only | False-positives on Activities that `finish()` immediately or return right after a permission prompt |
 | **UsageStats disappearance** | Using usage access, confirms from history that the target came to the foreground after firing and then disappeared without our interaction | Activity only (those that came to the foreground). Catches "silent crashes" in the 1.5–3 s band | Indistinguishable from an immediate `finish()`. History appears seconds late. Death right after launch leaves no record |
 | **Process exit reason** (optional) | After firing, queries the OS's exit history and observes termination due to crash (`REASON_CRASH` / `REASON_CRASH_NATIVE` / `REASON_INITIALIZATION_FAILURE`) | All kinds (anything fired) | Querying other packages requires the DUMP permission (granted once via `adb`). API 30+ |
 
@@ -71,10 +71,15 @@ These are combined, and each result is given a **confidence**. Observing a crash
 UsageStats disappearance share the same ambiguity — "disappeared without user
 interaction" — so they are treated separately from confirmed judgments.
 
+To suppress false positives, **a lower-confidence signal is used only when higher ones are
+unavailable**. With DUMP, the exit reason is ground truth, so a disappearance that cannot be
+confirmed as a crash is not reported as a suspect. With usage access, UsageStats is preferred;
+rapid return is used only when neither oracle is available.
+
 | Confidence | Basis | Required permission |
 |---|---|---|
 | **CONFIRMED** | Observed the target process's crash death after firing (crash/ANR dialog, or the optional exit reason) | Dialog: accessibility (optional) / Exit reason: DUMP (optional) |
-| **SUSPECTED** | Rapid return, or unexplained rapid disappearance via UsageStats | Rapid return: none / UsageStats: usage access |
+| **SUSPECTED** | Only when DUMP is unavailable: unexplained disappearance via UsageStats (with usage access), or rapid return as a last resort (without it) | UsageStats: usage access / Rapid return: none |
 | NONE | No signal matched (not applicable) | — |
 
 Results can be exported as "app name / version / component / recipe / confidence".
@@ -89,7 +94,8 @@ notification. Stopping is done from the ongoing notification.
 
 Confirmed effective payloads are stored on the device keyed by "package / component /
 recipe", so after a restart you can **skip exploration (spray) and go straight to keeping
-the target down**. Uninstalling the target removes them automatically.
+the target down**. Suspected hits (SUSPECTED) are not stored, since they can include false
+positives. Uninstalling the target removes them automatically.
 
 Self-adaptation is driven by **"whether it still works (effect)" rather than "version
 number"**. When a previously effective payload fails repeatedly during the keep-down mode
