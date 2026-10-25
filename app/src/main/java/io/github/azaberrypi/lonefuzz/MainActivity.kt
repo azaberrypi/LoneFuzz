@@ -1,6 +1,20 @@
 package io.github.azaberrypi.lonefuzz
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import java.util.Locale
+import androidx.lifecycle.Lifecycle
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.NotificationCompat
+import android.widget.FrameLayout
+import android.view.ViewGroup
+import android.view.Gravity
+import android.os.SystemClock
+import android.os.Build
+import android.content.pm.PackageManager
+import android.app.PendingIntent
+import android.app.NotificationManager
+import android.app.NotificationChannel
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -88,6 +102,18 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     /** 実行中の spray/BURST を開始した時点の言語（ログの言語を固定する）。 */
     private var runLogText: LogText? = null
+
+    private var runStartedAt = 0L
+    private var runResultView: View? = null
+    private var pendingRunResult: RunResult? = null
+    private val resultHideRunnable = Runnable { hideRunResult() }
+
+    private data class RunResult(
+        val title: String,
+        val detail: String,
+        val meta: String,
+        val hit: Boolean,
+    )
 
     private fun runText(): LogText =
         runLogText ?: LogText(this, LogText.currentLocale(this)).also { runLogText = it }
@@ -266,6 +292,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
                 refreshRunButtons()
                 AttackControl.setStopListener(null)
+                showSprayResult(t, results, results.size, results.size, natural = true)
             } else {
                 appendLog(t.get(R.string.log_burst_stop))
                 btnBurst.text = getString(R.string.btn_burst)
@@ -302,14 +329,18 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     /** spray を中断する（ボタン/通知の共通経路）。 */
     private fun stopScan() {
         if (!scanEngine.scanning) return
+        val t = runText()
+        val (done, total) = scanEngine.progress()
+        val hits = scanEngine.getHits()
         scanEngine.stop()
         AttackControl.setStopListener(null)
         stopFgs()
         btnScan.text = getString(R.string.btn_scan)
-        appendLog(runText().get(R.string.log_spray_abort))
-        lastScanHits = scanEngine.getHits()
+        appendLog(t.get(R.string.log_spray_abort))
+        lastScanHits = hits
         hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
         refreshRunButtons()
+        showSprayResult(t, hits, done, total, natural = false)
     }
 
     /** spray を開始する共通導線（手動 spray と効果ベース再適応の自動再探索から使う）。 */
@@ -346,6 +377,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshRunButtons()
         setLogExpanded(true)
+        hideRunResult(immediate = true)
+        runStartedAt = SystemClock.elapsedRealtime()
         // SPRAY も FGS にして通知バーから中断できるようにする（画面を離れても継続）。
         AttackControl.setStopListener {
             mainHandler.post { if (scanEngine.scanning) stopScan() }
@@ -394,6 +427,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         appendLog(t.get(R.string.log_burst_start, lastScanHits.size, hitApps))
         btnBurst.text = getString(R.string.btn_burst_stop)
         setLogExpanded(true)
+        hideRunResult(immediate = true)
+        runStartedAt = SystemClock.elapsedRealtime()
         startFgs(AttackForegroundService.MODE_BURST, t)
         AttackControl.setStopListener {
             mainHandler.post { if (scanEngine.bursting) stopBurst() }
@@ -403,12 +438,16 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     }
 
     private fun stopBurst() {
+        val wasBursting = scanEngine.bursting
         AttackControl.setStopListener(null)
         scanEngine.stop()
         stopFgs()
         btnBurst.text = getString(R.string.btn_burst)
         appendLog(runText().get(R.string.log_burst_stop))
         refreshRunButtons()
+        if (wasBursting) {
+            showRunResult(runText().get(R.string.run_result_burst_stopped), "", "", false)
+        }
     }
 
     private fun startFgs(mode: String, text: LogText) {
@@ -553,6 +592,11 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         updateDetectorStatus()
         updateDumpStatus()
         refreshRunButtons()
+        pendingRunResult?.let {
+            pendingRunResult = null
+            displayRunResult(it)
+            cancelRunResultNotification()
+        }
         // a11y サービスは onResume 直後に接続完了することがあり、初回表示が
         // 「検知 OFF」のまま残る。少し遅らせて再確認する。
         mainHandler.postDelayed({
@@ -750,7 +794,174 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
+    private fun showSprayResult(
+        t: LogText,
+        results: List<ScanEngine.Result>,
+        done: Int,
+        total: Int,
+        natural: Boolean,
+    ) {
+        val hits = results.count { it.hit }
+        val confirmed = results.count { it.confidence == ScanEngine.HitConfidence.CONFIRMED }
+        val suspected = results.count { it.confidence == ScanEngine.HitConfidence.SUSPECTED }
+        val vulnApps = results.filter { it.hit }.map { it.packageName }.distinct().size
+        val elapsed = elapsedSinceRunStart()
+        val title = t.get(
+            if (natural) R.string.run_result_spray_done else R.string.run_result_spray_stopped,
+        )
+        val detail = when {
+            natural && hits == 0 -> t.get(R.string.run_result_detail_none, done)
+            natural -> t.get(R.string.run_result_detail_done, done, hits, vulnApps)
+            hits == 0 -> t.get(R.string.run_result_detail_stopped_none, done, total)
+            else -> t.get(R.string.run_result_detail_stopped, done, total, hits, vulnApps)
+        }
+        val meta = when {
+            confirmed + suspected == 0 ->
+                if (elapsed.isEmpty()) "" else t.get(R.string.run_result_meta_time, elapsed)
+            elapsed.isEmpty() -> t.get(R.string.run_result_meta_no_time, confirmed, suspected)
+            else -> t.get(R.string.run_result_meta, confirmed, suspected, elapsed)
+        }
+        showRunResult(title, detail, meta, hits > 0)
+    }
+
+    private fun elapsedSinceRunStart(): String {
+        if (runStartedAt <= 0L) return ""
+        val sec = ((SystemClock.elapsedRealtime() - runStartedAt) / 1000).coerceAtLeast(0)
+        val h = sec / 3600
+        val m = (sec % 3600) / 60
+        val s = sec % 60
+        return if (h > 0) {
+            String.format(Locale.ROOT, "%d:%02d:%02d", h, m, s)
+        } else {
+            String.format(Locale.ROOT, "%02d:%02d", m, s)
+        }
+    }
+
+    private fun showRunResult(title: String, detail: String, meta: String, hit: Boolean) {
+        if (isFinishing || isDestroyed) return
+        val result = RunResult(title, detail, meta, hit)
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            pendingRunResult = result
+            postRunResultNotification(result)
+            return
+        }
+        pendingRunResult = null
+        cancelRunResultNotification()
+        displayRunResult(result)
+    }
+
+    private fun displayRunResult(result: RunResult) {
+        hideRunResult(immediate = true)
+        val content = findViewById<FrameLayout>(android.R.id.content) ?: return
+        val card = layoutInflater.inflate(R.layout.view_run_result, content, false)
+        val title = card.findViewById<TextView>(R.id.runResultTitle)
+        val detail = card.findViewById<TextView>(R.id.runResultDetail)
+        val meta = card.findViewById<TextView>(R.id.runResultMeta)
+        title.text = result.title
+        title.setTextColor(getColor(if (result.hit) R.color.accent else R.color.on_surface))
+        detail.text = result.detail
+        detail.visibility = if (result.detail.isEmpty()) View.GONE else View.VISIBLE
+        meta.text = result.meta
+        meta.visibility = if (result.meta.isEmpty()) View.GONE else View.VISIBLE
+
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            leftMargin = dp(20)
+            rightMargin = dp(20)
+            topMargin = dp(76)
+        }
+        card.layoutParams = lp
+        card.alpha = 0f
+        card.translationY = -dp(8).toFloat()
+        card.isClickable = true
+        card.setOnClickListener { hideRunResult() }
+        content.addView(card)
+        runResultView = card
+        card.announceForAccessibility(
+            listOf(result.title, result.detail, result.meta)
+                .filter { it.isNotEmpty() }
+                .joinToString(" "),
+        )
+        content.post {
+            if (runResultView !== card) return@post
+            val header = findViewById<View>(R.id.langSwitch)
+            val hLoc = IntArray(2)
+            val cLoc = IntArray(2)
+            header.getLocationInWindow(hLoc)
+            content.getLocationInWindow(cLoc)
+            lp.topMargin = (hLoc[1] - cLoc[1]) + header.height + dp(8)
+            card.layoutParams = lp
+        }
+        card.animate().alpha(1f).translationY(0f).setDuration(180).start()
+        mainHandler.removeCallbacks(resultHideRunnable)
+        mainHandler.postDelayed(resultHideRunnable, 3_500)
+    }
+
+    private fun hideRunResult(immediate: Boolean = false) {
+        mainHandler.removeCallbacks(resultHideRunnable)
+        val card = runResultView ?: return
+        runResultView = null
+        if (immediate) {
+            (card.parent as? ViewGroup)?.removeView(card)
+            return
+        }
+        card.animate()
+            .alpha(0f)
+            .translationY(-dp(8).toFloat())
+            .setDuration(220)
+            .withEndAction { (card.parent as? ViewGroup)?.removeView(card) }
+            .start()
+    }
+
+    private fun postRunResultNotification(result: RunResult) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val t = runText()
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    RESULT_CHANNEL_ID,
+                    t.get(R.string.notif_channel_result),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ),
+            )
+        }
+        val open = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        val pi = PendingIntent.getActivity(
+            this, 3, open,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val body = listOf(result.detail, result.meta).filter { it.isNotEmpty() }.joinToString(" · ")
+        val notif = NotificationCompat.Builder(this, RESULT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(result.title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+        runCatching { NotificationManagerCompat.from(this).notify(RESULT_NOTIFICATION_ID, notif) }
+    }
+
+    private fun cancelRunResultNotification() {
+        runCatching { NotificationManagerCompat.from(this).cancel(RESULT_NOTIFICATION_ID) }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     override fun onDestroy() {
+        hideRunResult(immediate = true)
+        cancelRunResultNotification()
         AttackControl.setStopListener(null)
         scanEngine.stop()
         stopFgs()
@@ -760,6 +971,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     companion object {
         private const val MAX_LOG_LINES = 300
         private const val REQ_NOTIFICATIONS = 1001
+        private const val RESULT_CHANNEL_ID = "run_result_channel"
+        private const val RESULT_NOTIFICATION_ID = 2
 
         private const val KEY_LOG = "ui_log"
         private const val KEY_LOG_EXPANDED = "ui_log_expanded"

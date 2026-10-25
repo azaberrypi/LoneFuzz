@@ -43,6 +43,16 @@
 
     <!-- Run logs (fixed to the language when spray/BURST started) -->
     <string name="log_run_header">=== %1$s ===</string>
+    <string name="run_result_spray_done">SPRAY complete</string>
+    <string name="run_result_spray_stopped">SPRAY stopped</string>
+    <string name="run_result_burst_stopped">BURST stopped</string>
+    <string name="run_result_detail_done">%1$d tests · %2$d HIT (%3$d apps)</string>
+    <string name="run_result_detail_none">%1$d tests · no HIT</string>
+    <string name="run_result_detail_stopped">%1$d/%2$d tests · %3$d HIT (%4$d apps)</string>
+    <string name="run_result_detail_stopped_none">%1$d/%2$d tests · no HIT</string>
+    <string name="run_result_meta">confirmed %1$d / suspected %2$d · %3$s</string>
+    <string name="run_result_meta_no_time">confirmed %1$d / suspected %2$d</string>
+    <string name="run_result_meta_time">%1$s</string>
     <string name="log_enumerating">Enumerating apps...</string>
     <string name="log_enumerated">Enumerated: %1$d apps with exported components</string>
     <string name="log_armory_count">Armory: %1$d stored HITs (select a target and use BURST to reuse without spray)</string>
@@ -85,6 +95,7 @@
 
     <!-- Run notification -->
     <string name="notif_channel_attack">Attack run</string>
+    <string name="notif_channel_result">Run results</string>
     <string name="notif_spray_title">LoneFuzz SPRAY running</string>
     <string name="notif_burst_title">LoneFuzz BURST running</string>
     <string name="notif_running_title">LoneFuzz running</string>

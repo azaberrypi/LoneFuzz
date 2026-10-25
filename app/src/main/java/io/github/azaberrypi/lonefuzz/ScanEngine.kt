@@ -554,6 +554,9 @@ class ScanEngine(private val activity: Activity) {
 
     fun getHits(): List<Result> = results.filter { it.hit }
 
+    /** 手動停止時の途中経過（実行済み, 総数）。 */
+    fun progress(): Pair<Int, Int> = results.size to totalCount
+
     fun exportResults(): String {
         val hits = results.filter { it.hit }
         val confirmed = hits.filter { it.confidence == HitConfidence.CONFIRMED }
