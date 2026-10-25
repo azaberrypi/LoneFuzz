@@ -153,6 +153,10 @@ used for "detection confidence" and "automation".
 
 ---
 
+## Releases
+
+Pushing a tag like `v1.0.0` builds a debug-signed sideload APK and attaches it to the GitHub Release.
+
 ## Known limitations
 
 - Crashes happen asynchronously in the target process, so our calls normally don't throw.
