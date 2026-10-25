@@ -11,6 +11,7 @@
     <color name="on_surface">#FFE6E9EF</color>
     <color name="on_surface_dim">#FF9AA3B2</color>
     <color name="bad">#FFFF5252</color>
+    <color name="neon_pink">#FFFF2D95</color>
 
     <!-- 無効状態は色味を残さずグレー（「使えない」を明確に） -->
     <color name="btn_disabled_bg">#FF2A2E36</color>

@@ -46,6 +46,7 @@ import io.github.azaberrypi.lonefuzz.model.ComponentKind
 import io.github.azaberrypi.lonefuzz.model.TargetApp
 import io.github.azaberrypi.lonefuzz.model.TargetComponent
 import io.github.azaberrypi.lonefuzz.ui.AppListAdapter
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import java.util.ArrayDeque
@@ -872,12 +873,14 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private fun displayRunResult(result: RunResult) {
         hideRunResult(immediate = true)
         val content = findViewById<FrameLayout>(android.R.id.content) ?: return
-        val card = layoutInflater.inflate(R.layout.view_run_result, content, false)
+        val card = layoutInflater.inflate(R.layout.view_run_result, content, false) as MaterialCardView
         val title = card.findViewById<TextView>(R.id.runResultTitle)
         val detail = card.findViewById<TextView>(R.id.runResultDetail)
         val meta = card.findViewById<TextView>(R.id.runResultMeta)
         title.text = result.title
-        title.setTextColor(getColor(if (result.hit) R.color.accent else R.color.on_surface))
+        val accent = getColor(if (result.hit) R.color.neon_pink else R.color.accent)
+        title.setTextColor(accent)
+        card.strokeColor = accent
         detail.text = result.detail
         detail.visibility = if (result.detail.isEmpty()) View.GONE else View.VISIBLE
         meta.text = result.meta
