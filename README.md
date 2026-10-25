@@ -135,7 +135,7 @@ used for "detection confidence" and "automation".
 |---|---|---|
 | **SHOT** (single) | Sends one Intent to one selected component with one recipe (no detection; select exactly one of each) | Zero permissions |
 | **SPRAY** (explore) | Sweeps exported Activities × recipes one pair at a time, waiting for a crash/ANR after each to detect and record effective payloads (slower; selecting targets is required) | Accessibility (automation/detection) |
-| **BURST** | Keeps re-sending only the confirmed effective payloads in a loop, continuously taking the target down (reusable from the armory without spray) | Accessibility + foreground service |
+| **BURST** | Keeps re-sending confirmed **non-Activity** payloads (Service/Receiver/Provider) in a loop until stopped (reusable from the armory without spray; verify Activity HITs with SHOT/SPRAY) | Accessibility + foreground service |
 
 ---
 

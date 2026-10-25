@@ -26,10 +26,10 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=1つずつ撃って検知 ／ BURST=確定HITを止めるまで連射 ／ SHOT=1コンポーネント×1レシピを1発（検知なし） ／ 長押しで説明</string>
+    <string name="legend_actions">SPRAY=1つずつ撃って検知 ／ BURST=Activity以外の確定HITを止めるまで連射 ／ SHOT=1コンポーネント×1レシピを1発（検知なし） ／ 長押しで説明</string>
 
     <string name="tip_spray">選択した対象にコンポーネント×レシピを1つずつ撃ち、各発射後にクラッシュ/ANRを待って検知する（時間がかかる）</string>
-    <string name="tip_burst">spray で確定した有効なペイロードを、止めるまで連射し続ける</string>
+    <string name="tip_burst">spray で確定した Activity 以外の HIT を、止めるまで連射し続ける</string>
     <string name="tip_shot">選択中の1コンポーネント × 1レシピに Intent を1回だけ送る（検知なし）</string>
 
     <string name="detector_off">検知 OFF（タップで有効化）</string>
@@ -70,6 +70,8 @@
     <string name="log_burst_no_hits">選択対象に保存済みHITがありません。先にsprayを実行してください。</string>
     <string name="log_burst_loaded">武器庫から %1$d 件のHITを読み込みました（最終確認版を保持・版では無効化しません）。</string>
     <string name="log_need_a11y_burst">BURST にはユーザー補助の有効化が必要です。</string>
+    <string name="log_burst_activity_only">BURST できる HIT がありません（Activity HIT は BURST 対象外。SHOT/SPRAY で確認してください）。</string>
+    <string name="log_burst_skip_activity">BURST: Activity HIT %1$d 件を除外（Service/Receiver/Provider のみ連射）。</string>
     <string name="log_burst_start">=== BURST 開始: %1$d HIT (%2$d アプリ) — 止めるまで連射を継続 ===</string>
     <string name="log_hit">HIT[%1$s] %2$s / %3$s [%4$s]</string>
     <string name="conf_confirmed">確定</string>

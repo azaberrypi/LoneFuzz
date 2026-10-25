@@ -26,10 +26,10 @@
     <string name="btn_burst">BURST</string>
     <string name="btn_burst_stop">STOP</string>
 
-    <string name="legend_actions">SPRAY=fire &amp; detect one by one ／ BURST=loop confirmed hits until stopped ／ SHOT=one component × one recipe, no detection ／ long-press for help</string>
+    <string name="legend_actions">SPRAY=fire &amp; detect one by one ／ BURST=loop confirmed non-Activity hits until stopped ／ SHOT=one component × one recipe, no detection ／ long-press for help</string>
 
     <string name="tip_spray">Fire component × recipe pairs one at a time, waiting for a crash/ANR after each (slower)</string>
-    <string name="tip_burst">Keep re-firing the payloads confirmed by spray until you stop</string>
+    <string name="tip_burst">Keep re-firing confirmed non-Activity HITs until you stop</string>
     <string name="tip_shot">Send one Intent to the selected single component × single recipe (no detection; select exactly one of each)</string>
 
     <string name="detector_off">Detector OFF (tap to enable)</string>
@@ -70,6 +70,8 @@
     <string name="log_burst_no_hits">No stored HITs for the selection. Run a spray first.</string>
     <string name="log_burst_loaded">Loaded %1$d HITs from the armory (last confirmed version kept; not invalidated by version).</string>
     <string name="log_need_a11y_burst">Accessibility must be enabled for BURST.</string>
+    <string name="log_burst_activity_only">No BURST-able HITs (Activity HITs are excluded; use SHOT/SPRAY to confirm).</string>
+    <string name="log_burst_skip_activity">BURST: skipped %1$d Activity HIT(s); only Service/Receiver/Provider are repeated.</string>
     <string name="log_burst_start">=== BURST start: %1$d HITs (%2$d apps) — firing until stopped ===</string>
     <string name="log_hit">HIT[%1$s] %2$s / %3$s [%4$s]</string>
     <string name="conf_confirmed">confirmed</string>

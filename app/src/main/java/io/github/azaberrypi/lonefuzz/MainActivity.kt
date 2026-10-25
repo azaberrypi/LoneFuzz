@@ -7,6 +7,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.NotificationCompat
 import android.widget.FrameLayout
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.view.Gravity
 import android.os.SystemClock
 import android.os.Build
@@ -158,6 +159,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 appendLog(getString(R.string.log_shot_select_one))
                 return@setOnClickListener
             }
+            hideIme()
             engine.fireShot(comps[0], recipes[0], this)
         }
 
@@ -374,6 +376,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         if (s + r + p > 0 && !CrashWatcher.hasDumpPermission(this)) {
             appendLog(t.get(R.string.log_dump_warning))
         }
+        hideIme()
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshRunButtons()
         setLogExpanded(true)
@@ -399,7 +402,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val t = LogText(this, LogText.currentLocale(this))
         runLogText = t
 
-        if (lastScanHits.isEmpty()) {
+        if (lastScanHits.none { it.kind != ComponentKind.ACTIVITY }) {
             // 今回の spray が無くても、武器庫に選択対象の HIT があれば再利用する（バージョンは問わない）。
             val pkgs = selectedComponents().map { it.packageName }.distinct()
             if (pkgs.isEmpty()) {
@@ -415,16 +418,29 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             appendLog(t.get(R.string.log_burst_loaded, lastScanHits.size))
         }
 
+        // BURST は前面遷移しない Service/Receiver/Provider だけを連射する。
+        // Activity HIT を連射すると毎周 victim に飛ぶため、確認は SHOT/SPRAY に任せる。
+        val burstTargets = lastScanHits.filter { it.kind != ComponentKind.ACTIVITY }
+        if (burstTargets.isEmpty()) {
+            appendLog(t.get(R.string.log_burst_activity_only))
+            return
+        }
+        val skipped = lastScanHits.size - burstTargets.size
+        if (skipped > 0) {
+            appendLog(t.get(R.string.log_burst_skip_activity, skipped))
+        }
+
         if (!CrashDetectorService.isRunning) {
             appendLog(t.get(R.string.log_need_a11y_burst))
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
 
-        val hitApps = lastScanHits.map { it.packageName }.distinct().size
+        hideIme()
+        val hitApps = burstTargets.map { it.packageName }.distinct().size
         burstCycle = 0
         appendLog(t.runHeader())
-        appendLog(t.get(R.string.log_burst_start, lastScanHits.size, hitApps))
+        appendLog(t.get(R.string.log_burst_start, burstTargets.size, hitApps))
         btnBurst.text = getString(R.string.btn_burst_stop)
         setLogExpanded(true)
         hideRunResult(immediate = true)
@@ -433,7 +449,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         AttackControl.setStopListener {
             mainHandler.post { if (scanEngine.bursting) stopBurst() }
         }
-        scanEngine.startBurst(lastScanHits, t)
+        scanEngine.startBurst(burstTargets, t)
         refreshRunButtons()
     }
 
@@ -700,10 +716,12 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
      * 武器庫の保存済み HIT があれば可能。ボタンは常時表示し、可否だけ反映する。
      */
     private fun canBurst(): Boolean {
-        if (lastScanHits.isNotEmpty()) return true
+        if (lastScanHits.any { it.kind != ComponentKind.ACTIVITY }) return true
         val pkgs = selectedComponents().map { it.packageName }.distinct()
         if (pkgs.isEmpty()) return false
-        return pkgs.any { hitStore.storedFor(it).isNotEmpty() }
+        return pkgs.any { pkg ->
+            hitStore.storedFor(pkg).any { it.kind != ComponentKind.ACTIVITY }
+        }
     }
 
     /**
@@ -850,6 +868,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         displayRunResult(result)
     }
 
+    @Suppress("DEPRECATION")
     private fun displayRunResult(result: RunResult) {
         hideRunResult(immediate = true)
         val content = findViewById<FrameLayout>(android.R.id.content) ?: return
@@ -868,14 +887,13 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            leftMargin = dp(20)
-            rightMargin = dp(20)
-            topMargin = dp(76)
+            gravity = Gravity.CENTER
+            leftMargin = dp(24)
+            rightMargin = dp(24)
         }
         card.layoutParams = lp
         card.alpha = 0f
-        card.translationY = -dp(8).toFloat()
+        card.translationY = dp(12).toFloat()
         card.isClickable = true
         card.setOnClickListener { hideRunResult() }
         content.addView(card)
@@ -885,19 +903,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 .filter { it.isNotEmpty() }
                 .joinToString(" "),
         )
-        content.post {
-            if (runResultView !== card) return@post
-            val header = findViewById<View>(R.id.langSwitch)
-            val hLoc = IntArray(2)
-            val cLoc = IntArray(2)
-            header.getLocationInWindow(hLoc)
-            content.getLocationInWindow(cLoc)
-            lp.topMargin = (hLoc[1] - cLoc[1]) + header.height + dp(8)
-            card.layoutParams = lp
-        }
         card.animate().alpha(1f).translationY(0f).setDuration(180).start()
         mainHandler.removeCallbacks(resultHideRunnable)
-        mainHandler.postDelayed(resultHideRunnable, 3_500)
+        mainHandler.postDelayed(resultHideRunnable, 5_000)
     }
 
     private fun hideRunResult(immediate: Boolean = false) {
@@ -955,6 +963,12 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private fun cancelRunResultNotification() {
         runCatching { NotificationManagerCompat.from(this).cancel(RESULT_NOTIFICATION_ID) }
+    }
+
+    private fun hideIme() {
+        currentFocus?.clearFocus()
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(window.decorView.windowToken, 0)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

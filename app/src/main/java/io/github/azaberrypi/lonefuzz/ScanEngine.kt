@@ -119,7 +119,7 @@ class ScanEngine(private val activity: Activity) {
         fireNext()
     }
 
-    /** BURST モード: 確定HITだけを繰り返し連射 */
+    /** BURST モード: Activity 以外の確定HITを繰り返し連射 */
     fun startBurst(hits: List<Result>, strings: LogText) {
         if (scanning) return
         if (!CrashDetectorService.isRunning) {
