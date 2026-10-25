@@ -34,6 +34,9 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     /** 選択状態が変わったとき（BURST の有効/無効の再計算など）に通知する。 */
     var onSelectionChanged: (() -> Unit)? = null
 
+    /** HIT バッジがタップされたとき（pkg|class）。 */
+    var onHitBadgeClick: ((String) -> Unit)? = null
+
     /** このセッションの HIT 状態を反映する（確定=pkg|class の集合、疑い=同）。 */
     fun setHitKeys(confirmed: Set<String>, suspected: Set<String>) {
         if (confirmedHitKeys == confirmed && suspectedHitKeys == suspected) return
@@ -143,6 +146,8 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 }
                 else -> hit.visibility = View.GONE
             }
+            hit.isClickable = true
+            hit.setOnClickListener { onHitBadgeClick?.invoke(key) }
             check.isChecked = component.selected
             itemView.setOnClickListener {
                 component.selected = !component.selected

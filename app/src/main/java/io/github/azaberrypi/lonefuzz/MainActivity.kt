@@ -40,6 +40,7 @@ import io.github.azaberrypi.lonefuzz.model.TargetComponent
 import io.github.azaberrypi.lonefuzz.ui.AppListAdapter
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.chip.ChipGroup
 import java.util.ArrayDeque
 
@@ -100,6 +101,14 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private var runStartedAt = 0L
     private val sessionConfirmedKeys = mutableSetOf<String>()
     private val sessionSuspectedKeys = mutableSetOf<String>()
+    private val sessionHitDetails = LinkedHashMap<String, LinkedHashMap<String, HitDetail>>()
+
+    private data class HitDetail(
+        val recipeType: RecipeType,
+        val confidence: ScanEngine.HitConfidence,
+        val kind: ComponentKind,
+        val authority: String?,
+    )
     private var runResultView: View? = null
     private var pendingRunResult: RunResult? = null
     private val resultHideRunnable = Runnable { hideRunResult() }
@@ -139,6 +148,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val list = findViewById<RecyclerView>(R.id.appList)
         adapter = AppListAdapter()
         adapter.onSelectionChanged = { refreshRunButtons() }
+        adapter.onHitBadgeClick = { key -> showHitDetails(key) }
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
@@ -256,7 +266,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         scanEngine.onHit = { result ->
             if (result.hit && !scanEngine.bursting) {
-                markHit(result.packageName, result.className, result.confidence)
+                markHit(result)
             }
             val t = runText()
             val conf = if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) {
@@ -292,8 +302,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
                 lastScanHits = results.filter { it.hit }
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
-                results.filter { it.hit }
-                    .forEach { markHit(it.packageName, it.className, it.confidence) }
+                results.filter { it.hit }.forEach { markHit(it) }
                 refreshRunButtons()
                 AttackControl.setStopListener(null)
                 showSprayResult(t, results, results.size, results.size, natural = true)
@@ -342,7 +351,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnScan.text = getString(R.string.btn_scan)
         appendLog(t.get(R.string.log_spray_abort))
         lastScanHits = hits
-        hits.forEach { markHit(it.packageName, it.className, it.confidence) }
+        hits.forEach { markHit(it) }
         hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
         refreshRunButtons()
         showSprayResult(t, hits, done, total, natural = false)
@@ -815,13 +824,21 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
-    private fun markHit(
-        packageName: String,
-        className: String,
-        confidence: ScanEngine.HitConfidence,
-    ) {
-        val key = "$packageName|$className"
-        val changed = when (confidence) {
+    private fun markHit(result: ScanEngine.Result) {
+        if (!result.hit) return
+        val key = "${result.packageName}|${result.className}"
+        val byRecipe = sessionHitDetails.getOrPut(key) { LinkedHashMap() }
+        val recipeKey = result.recipeType.name
+        val existing = byRecipe[recipeKey]
+        if (existing == null ||
+            (existing.confidence != ScanEngine.HitConfidence.CONFIRMED &&
+                result.confidence == ScanEngine.HitConfidence.CONFIRMED)
+        ) {
+            byRecipe[recipeKey] = HitDetail(
+                result.recipeType, result.confidence, result.kind, result.authority,
+            )
+        }
+        val changed = when (result.confidence) {
             ScanEngine.HitConfidence.CONFIRMED -> {
                 val wasSuspected = sessionSuspectedKeys.remove(key)
                 val isNew = sessionConfirmedKeys.add(key)
@@ -837,10 +854,37 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
     }
 
+    private fun showHitDetails(key: String) {
+        val byRecipe = sessionHitDetails[key] ?: return
+        if (byRecipe.isEmpty()) return
+        val pkg = key.substringBefore('|')
+        val cls = key.substringAfter('|')
+        val short = cls.substringAfterLast('.')
+        val kind = byRecipe.values.first().kind.name
+        val lines = byRecipe.values
+            .sortedBy { if (it.confidence == ScanEngine.HitConfidence.CONFIRMED) 0 else 1 }
+            .joinToString("\n") { d ->
+                val conf = getString(
+                    if (d.confidence == ScanEngine.HitConfidence.CONFIRMED) {
+                        R.string.hit_confirmed
+                    } else {
+                        R.string.hit_suspected
+                    },
+                )
+                getString(R.string.hit_detail_line, getString(d.recipeType.labelRes), conf)
+            }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.hit_detail_title, short))
+            .setMessage(getString(R.string.hit_detail_body, kind, "$pkg/$cls", lines))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun clearHitMarks() {
         if (sessionConfirmedKeys.isEmpty() && sessionSuspectedKeys.isEmpty()) return
         sessionConfirmedKeys.clear()
         sessionSuspectedKeys.clear()
+        sessionHitDetails.clear()
         adapter.setHitKeys(emptySet(), emptySet())
     }
 

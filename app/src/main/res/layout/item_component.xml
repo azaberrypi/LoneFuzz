@@ -40,6 +40,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="6dp"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="2dp"
         android:text="HIT"
         android:textColor="@color/neon_pink"
         android:textSize="10sp"
