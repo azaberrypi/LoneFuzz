@@ -155,7 +155,7 @@ used for "detection confidence" and "automation".
 
 ## Releases
 
-Pushing a tag like `v1.0.0` builds a debug-signed sideload APK and attaches it to the GitHub Release.
+Pushing a tag like `v1.0.0` **immediately publishes** a GitHub Release with a debug-signed sideload APK. Tags containing `-` (for example `v1.0.0-beta`) are published as prereleases.
 
 ## Known limitations
 
