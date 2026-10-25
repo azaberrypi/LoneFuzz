@@ -11,8 +11,8 @@ No PC, emulator, or root required. A single sideloaded APK takes you through
 "enumerate → explore → detect → burst" entirely on the device.
 
 > ## ⚠️
-> - Limit testing to **devices and apps you own or manage**, or targets for which you have **explicit written authorization**.
-> - Unauthorized use against third parties may violate the law. You are solely responsible for your use.
+> - The author assumes no responsibility for any damages arising from the use of this tool.
+> - The author does not intend or endorse malicious use.
 
 ---
 
