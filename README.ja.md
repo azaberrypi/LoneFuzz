@@ -2,6 +2,10 @@
 
 [English](README.md) | **日本語**
 
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="LoneFuzz icon">
+</p>
+
 Android アプリの **exported コンポーネント**（他アプリから起動・呼び出しできる
 Activity / Service / BroadcastReceiver / ContentProvider）に、入力検証漏れを突く
 Intent を送り込み、**ローカル DoS（クラッシュ / ANR）** を再現可能な形で実証する、

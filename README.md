@@ -2,6 +2,10 @@
 
 **English** | [日本語](README.ja.md)
 
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="LoneFuzz icon">
+</p>
+
 LoneFuzz is an **on-device** tool that reproducibly demonstrates **local DoS
 (crash / ANR)** by sending crafted Intents to the **exported components** of Android
 apps (Activity / Service / BroadcastReceiver / ContentProvider) that other apps are
