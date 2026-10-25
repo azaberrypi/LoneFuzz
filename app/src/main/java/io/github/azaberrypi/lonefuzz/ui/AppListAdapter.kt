@@ -28,9 +28,17 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val apps = mutableListOf<TargetApp>()
     private val rows = mutableListOf<Row>()
+    private var hitKeys: Set<String> = emptySet()
 
     /** 選択状態が変わったとき（BURST の有効/無効の再計算など）に通知する。 */
     var onSelectionChanged: (() -> Unit)? = null
+
+    /** このセッションで確定 HIT したコンポーネント（pkg|class）に HIT バッジを付ける。 */
+    fun setHitKeys(keys: Set<String>) {
+        if (hitKeys == keys) return
+        hitKeys = keys.toSet()
+        notifyDataSetChanged()
+    }
 
     fun submit(list: List<TargetApp>) {
         apps.clear()
@@ -109,6 +117,7 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         val check: CheckBox = view.findViewById(R.id.check)
         val badge: TextView = view.findViewById(R.id.kindBadge)
         val name: TextView = view.findViewById(R.id.compName)
+        val hit: TextView = view.findViewById(R.id.hitBadge)
 
         fun bind(app: TargetApp, component: TargetComponent) {
             badge.text = when (component.kind) {
@@ -118,6 +127,8 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 ComponentKind.PROVIDER -> "P"
             }
             name.text = component.shortName()
+            hit.visibility =
+                if ("${component.packageName}|${component.className}" in hitKeys) View.VISIBLE else View.GONE
             check.isChecked = component.selected
             itemView.setOnClickListener {
                 component.selected = !component.selected

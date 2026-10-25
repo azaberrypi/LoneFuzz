@@ -106,6 +106,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private var runLogText: LogText? = null
 
     private var runStartedAt = 0L
+    private val sessionHitKeys = mutableSetOf<String>()
     private var runResultView: View? = null
     private var pendingRunResult: RunResult? = null
     private val resultHideRunnable = Runnable { hideRunResult() }
@@ -261,6 +262,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             }
         }
         scanEngine.onHit = { result ->
+            if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) {
+                markHit(result.packageName, result.className)
+            }
             val t = runText()
             val conf = if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) {
                 t.get(R.string.conf_confirmed)
@@ -293,6 +297,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
                 lastScanHits = results.filter { it.hit }
                 hitStore.record(lastScanHits) // 武器庫へ永続化（アンインストールまで保持。版では無効化しない）
+                results.filter { it.confidence == ScanEngine.HitConfidence.CONFIRMED }
+                    .forEach { markHit(it.packageName, it.className) }
                 refreshRunButtons()
                 AttackControl.setStopListener(null)
                 showSprayResult(t, results, results.size, results.size, natural = true)
@@ -341,6 +347,8 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnScan.text = getString(R.string.btn_scan)
         appendLog(t.get(R.string.log_spray_abort))
         lastScanHits = hits
+        hits.filter { it.confidence == ScanEngine.HitConfidence.CONFIRMED }
+            .forEach { markHit(it.packageName, it.className) }
         hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
         refreshRunButtons()
         showSprayResult(t, hits, done, total, natural = false)
@@ -741,6 +749,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     }
 
     private fun enumerate() {
+        clearHitMarks()
         appendLog(getString(R.string.log_enumerating))
         Thread {
             val apps = ComponentEnumerator(packageManager).enumerate(excludePackage = packageName)
@@ -811,6 +820,18 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         }
         logView.text = getString(R.string.log_cleared)
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private fun markHit(packageName: String, className: String) {
+        if (sessionHitKeys.add("$packageName|$className")) {
+            adapter.setHitKeys(sessionHitKeys.toSet())
+        }
+    }
+
+    private fun clearHitMarks() {
+        if (sessionHitKeys.isEmpty()) return
+        sessionHitKeys.clear()
+        adapter.setHitKeys(emptySet())
     }
 
     private fun showSprayResult(
