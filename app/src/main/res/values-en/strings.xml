@@ -97,7 +97,6 @@
 
     <!-- Run notification -->
     <string name="notif_channel_attack">Attack run</string>
-    <string name="notif_channel_result">Run results</string>
     <string name="notif_spray_title">LoneFuzz SPRAY running</string>
     <string name="notif_burst_title">LoneFuzz BURST running</string>
     <string name="notif_running_title">LoneFuzz running</string>

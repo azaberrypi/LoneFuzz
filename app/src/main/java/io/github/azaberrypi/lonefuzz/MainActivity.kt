@@ -3,19 +3,11 @@ package io.github.azaberrypi.lonefuzz
 import android.accessibilityservice.AccessibilityServiceInfo
 import java.util.Locale
 import androidx.lifecycle.Lifecycle
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.NotificationCompat
 import android.widget.FrameLayout
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.view.Gravity
 import android.os.SystemClock
-import android.os.Build
-import android.content.pm.PackageManager
-import android.app.PendingIntent
-import android.app.NotificationManager
-import android.app.NotificationChannel
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -263,7 +255,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             }
         }
         scanEngine.onHit = { result ->
-            if (result.hit) {
+            if (result.hit && !scanEngine.bursting) {
                 markHit(result.packageName, result.className, result.confidence)
             }
             val t = runText()
@@ -277,7 +269,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 t.get(result.recipeType.labelRes),
             )
             appendLog("[$msg]")
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            if (!scanEngine.bursting) {
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            }
         }
         scanEngine.onComplete = { results ->
             val t = runText()
@@ -620,7 +614,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         pendingRunResult?.let {
             pendingRunResult = null
             displayRunResult(it)
-            cancelRunResultNotification()
         }
         // a11y サービスは onResume 直後に接続完了することがあり、初回表示が
         // 「検知 OFF」のまま残る。少し遅らせて再確認する。
@@ -899,11 +892,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val result = RunResult(title, detail, meta, hit)
         if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             pendingRunResult = result
-            postRunResultNotification(result)
             return
         }
         pendingRunResult = null
-        cancelRunResultNotification()
         displayRunResult(result)
     }
 
@@ -965,47 +956,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             .start()
     }
 
-    private fun postRunResultNotification(result: RunResult) {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-        val t = runText()
-        val nm = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    RESULT_CHANNEL_ID,
-                    t.get(R.string.notif_channel_result),
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ),
-            )
-        }
-        val open = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        val pi = PendingIntent.getActivity(
-            this, 3, open,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val body = listOf(result.detail, result.meta).filter { it.isNotEmpty() }.joinToString(" · ")
-        val notif = NotificationCompat.Builder(this, RESULT_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(result.title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setAutoCancel(true)
-            .setContentIntent(pi)
-            .build()
-        runCatching { NotificationManagerCompat.from(this).notify(RESULT_NOTIFICATION_ID, notif) }
-    }
-
-    private fun cancelRunResultNotification() {
-        runCatching { NotificationManagerCompat.from(this).cancel(RESULT_NOTIFICATION_ID) }
-    }
-
     private fun hideIme() {
         currentFocus?.clearFocus()
         val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
@@ -1016,7 +966,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     override fun onDestroy() {
         hideRunResult(immediate = true)
-        cancelRunResultNotification()
         AttackControl.setStopListener(null)
         scanEngine.stop()
         stopFgs()
@@ -1026,8 +975,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     companion object {
         private const val MAX_LOG_LINES = 300
         private const val REQ_NOTIFICATIONS = 1001
-        private const val RESULT_CHANNEL_ID = "run_result_channel"
-        private const val RESULT_NOTIFICATION_ID = 2
 
         private const val KEY_LOG = "ui_log"
         private const val KEY_LOG_EXPANDED = "ui_log_expanded"

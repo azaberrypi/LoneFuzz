@@ -97,7 +97,6 @@
 
     <!-- 実行中通知 -->
     <string name="notif_channel_attack">攻撃実行</string>
-    <string name="notif_channel_result">実行結果</string>
     <string name="notif_spray_title">LoneFuzz SPRAY 実行中</string>
     <string name="notif_burst_title">LoneFuzz BURST 実行中</string>
     <string name="notif_running_title">LoneFuzz 実行中</string>
