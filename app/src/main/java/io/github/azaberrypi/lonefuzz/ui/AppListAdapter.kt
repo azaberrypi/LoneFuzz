@@ -28,15 +28,17 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val apps = mutableListOf<TargetApp>()
     private val rows = mutableListOf<Row>()
-    private var hitKeys: Set<String> = emptySet()
+    private var confirmedHitKeys: Set<String> = emptySet()
+    private var suspectedHitKeys: Set<String> = emptySet()
 
     /** 選択状態が変わったとき（BURST の有効/無効の再計算など）に通知する。 */
     var onSelectionChanged: (() -> Unit)? = null
 
-    /** このセッションで確定 HIT したコンポーネント（pkg|class）に HIT バッジを付ける。 */
-    fun setHitKeys(keys: Set<String>) {
-        if (hitKeys == keys) return
-        hitKeys = keys.toSet()
+    /** このセッションの HIT 状態を反映する（確定=pkg|class の集合、疑い=同）。 */
+    fun setHitKeys(confirmed: Set<String>, suspected: Set<String>) {
+        if (confirmedHitKeys == confirmed && suspectedHitKeys == suspected) return
+        confirmedHitKeys = confirmed.toSet()
+        suspectedHitKeys = suspected.toSet()
         notifyDataSetChanged()
     }
 
@@ -127,8 +129,20 @@ class AppListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 ComponentKind.PROVIDER -> "P"
             }
             name.text = component.shortName()
-            hit.visibility =
-                if ("${component.packageName}|${component.className}" in hitKeys) View.VISIBLE else View.GONE
+            val key = "${component.packageName}|${component.className}"
+            when {
+                key in confirmedHitKeys -> {
+                    hit.text = "HIT"
+                    hit.setTextColor(itemView.context.getColor(R.color.neon_pink))
+                    hit.visibility = View.VISIBLE
+                }
+                key in suspectedHitKeys -> {
+                    hit.text = "HIT?"
+                    hit.setTextColor(itemView.context.getColor(R.color.hit_suspected))
+                    hit.visibility = View.VISIBLE
+                }
+                else -> hit.visibility = View.GONE
+            }
             check.isChecked = component.selected
             itemView.setOnClickListener {
                 component.selected = !component.selected
