@@ -17,12 +17,10 @@
     <string name="recipe_fgs_5s">FGS 5秒</string>
     <string name="stats_burst">BURST: 連射 %1$d 周目 | HIT %2$d（止めるまで継続）</string>
     <string name="stats_spray">spray: %1$d/%2$d  hit: %3$d</string>
-    <string name="stats_counts">sent: %1$d  err: %2$d  hit: %3$d</string>
     <string name="label_targets">対象アプリ (exported コンポーネントあり)</string>
     <string name="search_hint">アプリ名 / パッケージ名で検索</string>
 
     <string name="btn_shot">SHOT</string>
-    <string name="btn_fire">連射（押している間）</string>
     <string name="btn_scan">SPRAY</string>
     <string name="btn_scan_stop">STOP</string>
     <string name="btn_burst">BURST</string>
@@ -79,10 +77,6 @@
     <string name="log_result">[結果] %1$s / %2$s [%3$s] → %4$s</string>
     <string name="mark_confirmed">確定(クラッシュ死)</string>
     <string name="mark_suspected">疑い(即戻り/UsageStats)</string>
-    <string name="log_no_targets">対象コンポーネントが 0 件です。</string>
-    <string name="log_no_recipes">レシピが選択されていません。</string>
-    <string name="log_hold_start">=== 連射 開始: 対象 %1$d / レシピ %2$d ===</string>
-    <string name="log_hold_stop">=== 連射 停止 (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
     <string name="log_shot_select_one">SHOT はコンポーネント1つ・レシピ1つを選択したときだけ撃てます。</string>
     <string name="log_shot_not_applicable">SHOT: %1$s は %2$s には使えません。</string>

@@ -1,7 +1,6 @@
 package io.github.azaberrypi.lonefuzz
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -10,9 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.MotionEvent
 import android.view.View
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.EditText
@@ -77,11 +74,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private val logBuffer = ArrayDeque<String>()
     private var flushPending = false
     private var logGeneration = 0
-    private var pendingSent = 0
-    private var pendingErr = 0
-    private var statsPending = false
-
-    private var totalHits = 0
     private var lastScanHits = emptyList<ScanEngine.Result>()
 
     /** 言語切替で Activity が再生成された際、列挙完了後に選択状態を復元する。 */
@@ -150,8 +142,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         searchBox.doAfterTextChanged { applyFilter() }
 
         findViewById<Button>(R.id.btnRefresh).setOnClickListener { enumerate() }
-
-        setupFireButton(findViewById(R.id.btnFire))
 
         btnScan.setOnClickListener { toggleScan() }
         btnBurst.setOnClickListener { toggleBurst() }
@@ -242,7 +232,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             }
         }
         scanEngine.onHit = { result ->
-            totalHits++
             val t = runText()
             val conf = if (result.confidence == ScanEngine.HitConfidence.CONFIRMED) {
                 t.get(R.string.conf_confirmed)
@@ -283,7 +272,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 AttackControl.setStopListener(null)
             }
             stopFgs()
-            updateStatsDisplay()
         }
         scanEngine.onCycleComplete = { cycle ->
             burstCycle = cycle
@@ -421,7 +409,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnBurst.text = getString(R.string.btn_burst)
         appendLog(runText().get(R.string.log_burst_stop))
         refreshRunButtons()
-        updateStatsDisplay()
     }
 
     private fun startFgs(mode: String, text: LogText) {
@@ -723,59 +710,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         adapter.submit(shown)
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupFireButton(button: View) {
-        button.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    v.isPressed = true
-                    engine.start(selectedComponents(), selectedRecipes(), this)
-                    true
-                }
-
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.isPressed = false
-                    engine.stop()
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    v.performClick()
-                    true
-                }
-
-                else -> false
-            }
-        }
-    }
-
     // ---- AttackEngine.Listener ----
 
     override fun onLog(line: String) = appendLog(line)
-
-    override fun onStats(sent: Int, errors: Int) {
-        synchronized(logBuffer) {
-            pendingSent = sent
-            pendingErr = errors
-            if (statsPending) return
-            statsPending = true
-        }
-        mainHandler.post {
-            synchronized(logBuffer) {
-                statsPending = false
-            }
-            updateStatsDisplay()
-        }
-    }
-
-    private fun updateStatsDisplay() {
-        if (scanEngine.scanning) return
-        val s: Int
-        val e: Int
-        synchronized(logBuffer) {
-            s = pendingSent
-            e = pendingErr
-        }
-        stats.text = getString(R.string.stats_counts, s, e, totalHits)
-    }
 
     private fun appendLog(line: String) {
         val generation: Int
@@ -815,7 +752,6 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     override fun onDestroy() {
         AttackControl.setStopListener(null)
-        engine.stop()
         scanEngine.stop()
         stopFgs()
         super.onDestroy()

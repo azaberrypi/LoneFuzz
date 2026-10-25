@@ -9,9 +9,9 @@ import android.os.Process
 import java.util.ArrayDeque
 
 /**
- * 発火（AttackEngine）とクラッシュ検知（CrashDetectorService）を相関付けるシングルトン。
+ * 発火（ScanEngine）とクラッシュ検知（CrashDetectorService）を相関付けるシングルトン。
  * 発火ごとに recordFire() で記録し、クラッシュダイアログ検知時に onCrashDetected() で
- * 直近の発火と照合して HIT を報告する。
+ * 直近の発火と照合して確定時刻を記録する。
  */
 object CrashWatcher {
 
@@ -33,16 +33,11 @@ object CrashWatcher {
         val kind: String = "crash",
     )
 
-    fun interface HitListener {
-        fun onHit(hit: Hit)
-    }
-
     private const val WINDOW_MS = 8_000L
     private const val MAX_BUFFER = 200
 
     private val lock = Any()
     private val buffer = ArrayDeque<FiredShot>()
-    private var listener: HitListener? = null
 
     /**
      * パッケージ別の「確定クラッシュ/ANRを最後に観測した時刻」。
@@ -59,10 +54,6 @@ object CrashWatcher {
     @Volatile
     private var dialogPendingDismiss = false
 
-    fun setListener(l: HitListener?) {
-        synchronized(lock) { listener = l }
-    }
-
     fun recordFire(shot: FiredShot) {
         synchronized(lock) {
             buffer.addLast(shot)
@@ -74,24 +65,17 @@ object CrashWatcher {
         val now = System.currentTimeMillis()
         dialogPendingDismiss = true
         android.util.Log.i("LoneFuzz", "dialog detected (kind=$kind): ${dialogText.take(160)}")
-        val hit: Hit?
         synchronized(lock) {
             val recent = buffer.filter { now - it.time < WINDOW_MS }
             val textMatch = recent.lastOrNull {
                 it.appLabel.length >= 2 && dialogText.contains(it.appLabel, ignoreCase = true)
             }
             val match = textMatch ?: recent.lastOrNull()
-            hit = match?.let {
-                Hit(it.packageName, it.appLabel, it.componentShort, it.recipe, dialogText, kind)
-            }
             if (match != null) {
                 // 確定ソースとして記録。ScanEngine が発火後の確定を照会する。
                 lastConfirmed[match.packageName] = now
                 buffer.removeAll { it.packageName == match.packageName }
             }
-        }
-        if (hit != null) {
-            synchronized(lock) { listener }?.onHit(hit)
         }
     }
 

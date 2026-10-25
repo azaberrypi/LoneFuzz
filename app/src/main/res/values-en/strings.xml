@@ -17,12 +17,10 @@
     <string name="recipe_fgs_5s">FGS 5s</string>
     <string name="stats_burst">BURST: cycle %1$d | HIT %2$d (runs until stopped)</string>
     <string name="stats_spray">spray: %1$d/%2$d  hit: %3$d</string>
-    <string name="stats_counts">sent: %1$d  err: %2$d  hit: %3$d</string>
     <string name="label_targets">Target apps (with exported components)</string>
     <string name="search_hint">Search by app or package name</string>
 
     <string name="btn_shot">SHOT</string>
-    <string name="btn_fire">Burst (hold)</string>
     <string name="btn_scan">SPRAY</string>
     <string name="btn_scan_stop">STOP</string>
     <string name="btn_burst">BURST</string>
@@ -79,10 +77,6 @@
     <string name="log_result">[result] %1$s / %2$s [%3$s] → %4$s</string>
     <string name="mark_confirmed">confirmed (crash)</string>
     <string name="mark_suspected">suspected (rapid return / UsageStats)</string>
-    <string name="log_no_targets">No target components.</string>
-    <string name="log_no_recipes">No recipe selected.</string>
-    <string name="log_hold_start">=== burst start: %1$d targets / %2$d recipes ===</string>
-    <string name="log_hold_stop">=== burst stopped (sent=%1$d, err=%2$d) ===</string>
     <string name="log_shot_blocked">Cannot SHOT while SPRAY/BURST is running. Stop it first.</string>
     <string name="log_shot_select_one">SHOT requires exactly one component and one recipe.</string>
     <string name="log_shot_not_applicable">SHOT: %1$s is not applicable to %2$s.</string>
