@@ -620,6 +620,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         updateDetectorStatus()
         updateDumpStatus()
         refreshRunButtons()
+        if (!scanEngine.scanning && !scanEngine.bursting) {
+            stopFgs()
+        }
         pendingRunResult?.let {
             pendingRunResult = null
             displayRunResult(it)
