@@ -225,10 +225,13 @@ class ScanEngine(private val activity: Activity) {
                     // 前面に出た Activity が戻ってこない場合の保険（HOME 経由で自アプリへ戻す）。
                     handler.removeCallbacks(backPress)
                     handler.removeCallbacks(activityWatchdog)
+                    handler.removeCallbacks(crashCheck)
                     watchdogPair = pair
                     handler.postDelayed(backPress, TIMEOUT_MS)
                     // クラッシュ後にターゲットが再起動して再び前面に来るケースを拾う。
                     handler.postDelayed(activityWatchdog, TIMEOUT_MS + 500)
+                    // ダイアログ/exit-info が出た時点で、onResume を待たずに確定する。
+                    handler.postDelayed(crashCheck, 500L)
                 }
 
                 ComponentKind.SERVICE -> {
@@ -411,12 +414,14 @@ class ScanEngine(private val activity: Activity) {
         bursting = false
         watchdogPair = null
         handler.removeCallbacks(activityWatchdog)
+        handler.removeCallbacks(crashCheck)
         onComplete?.invoke(results.toList())
     }
 
     fun onResumed() {
         if (!scanning) return
         handler.removeCallbacks(backPress)
+        handler.removeCallbacks(crashCheck)
 
         val pair = current ?: return
         // Activity 以外の判定は scheduleNonActivityCheck が行う（onResume では判定しない）。
@@ -559,6 +564,29 @@ class ScanEngine(private val activity: Activity) {
                 CrashDetectorService.goHomeAndReturn()
             }
             handler.postDelayed(this, 1_000L)
+        }
+    }
+
+    /**
+     * Activity テスト中にクラッシュ確定（ダイアログ or exit-info）が出たら、
+     * LoneFuzz に戻るのを待たずに CONFIRMED として記録する。
+     * 再起動ループで onResume が来ないケースでも HIT を落とさない。
+     */
+    private val crashCheck = object : Runnable {
+        override fun run() {
+            if (!scanning) return
+            val pair = current ?: return
+            if (pair != watchdogPair) return
+            if (pair.first.kind != ComponentKind.ACTIVITY) return
+            if (confirmedNow(pair.first)) {
+                current = null
+                watchdogPair = null
+                handler.removeCallbacks(backPress)
+                handler.removeCallbacks(activityWatchdog)
+                resolve(pair, hit = true, confidence = HitConfidence.CONFIRMED)
+                return
+            }
+            handler.postDelayed(this, 500L)
         }
     }
 
