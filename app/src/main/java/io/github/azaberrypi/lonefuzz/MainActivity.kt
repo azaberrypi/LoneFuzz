@@ -308,6 +308,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 AttackControl.setStopListener(null)
                 showSprayResult(t, results, results.size, results.size, natural = true)
                 returnToLoneFuzzIfTargetFront()
+                scheduleTargetReturnChecks()
             } else {
                 appendLog(t.get(R.string.log_burst_stop))
                 btnBurst.text = getString(R.string.btn_burst)
@@ -358,6 +359,18 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         refreshRunButtons()
         showSprayResult(t, hits, done, total, natural = false)
         returnToLoneFuzzIfTargetFront()
+        scheduleTargetReturnChecks()
+    }
+
+    /** 対象アプリがクラッシュ後に再起動して前面へ戻るケースを拾う。 */
+    private fun scheduleTargetReturnChecks() {
+        listOf(800L, 2_000L, 4_000L).forEach { delay ->
+            mainHandler.postDelayed({
+                if (!scanEngine.scanning && !scanEngine.bursting) {
+                    returnToLoneFuzzIfTargetFront()
+                }
+            }, delay)
+        }
     }
 
     /** 対象アプリが前面に取り残されているときだけ LoneFuzz に戻す。 */
