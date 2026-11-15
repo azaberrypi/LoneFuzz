@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private var runLogText: LogText? = null
 
     private var runStartedAt = 0L
+    private var runTargetPackages: Set<String> = emptySet()
     private val sessionConfirmedKeys = mutableSetOf<String>()
     private val sessionSuspectedKeys = mutableSetOf<String>()
     private val sessionHitDetails = LinkedHashMap<String, LinkedHashMap<String, HitDetail>>()
@@ -306,6 +307,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 refreshRunButtons()
                 AttackControl.setStopListener(null)
                 showSprayResult(t, results, results.size, results.size, natural = true)
+                returnToLoneFuzzIfTargetFront()
             } else {
                 appendLog(t.get(R.string.log_burst_stop))
                 btnBurst.text = getString(R.string.btn_burst)
@@ -355,6 +357,16 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         hitStore.record(lastScanHits) // 中断時点までのHITも武器庫へ
         refreshRunButtons()
         showSprayResult(t, hits, done, total, natural = false)
+        returnToLoneFuzzIfTargetFront()
+    }
+
+    /** 対象アプリが前面に取り残されているときだけ LoneFuzz に戻す。 */
+    private fun returnToLoneFuzzIfTargetFront() {
+        if (CrashDetectorService.isOwnAppForeground()) return
+        val fg = CrashDetectorService.foregroundPackage() ?: return
+        if (fg in runTargetPackages) {
+            CrashDetectorService.goHomeAndReturn()
+        }
     }
 
     /** spray を開始する共通導線（手動 spray と効果ベース再適応の自動再探索から使う）。 */
@@ -389,6 +401,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             appendLog(t.get(R.string.log_dump_warning))
         }
         hideIme()
+        runTargetPackages = targets.map { it.packageName }.toSet()
         btnScan.text = getString(R.string.btn_scan_stop)
         refreshRunButtons()
         setLogExpanded(true)

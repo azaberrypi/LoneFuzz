@@ -79,6 +79,10 @@ class CrashDetectorService : AccessibilityService() {
             return pkg == svc.packageName
         }
 
+        /** 前面ウィンドウのパッケージ。取得できないときは null。 */
+        fun foregroundPackage(): String? =
+            instance?.rootInActiveWindow?.packageName?.toString()
+
         fun goHomeAndReturn() {
             val svc = instance ?: return
             // 前面が自アプリなら戻る必要がない（HOME→復帰のちらつきも避ける）。
