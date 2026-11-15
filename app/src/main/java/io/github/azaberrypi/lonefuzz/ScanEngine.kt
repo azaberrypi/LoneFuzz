@@ -45,6 +45,7 @@ class ScanEngine(private val activity: Activity) {
     private val results = mutableListOf<Result>()
     private val queue = ArrayDeque<Pair<TargetComponent, RecipeType>>()
     private var current: Pair<TargetComponent, RecipeType>? = null
+    private var watchdogPair: Pair<TargetComponent, RecipeType>? = null
     private var fireTime = 0L
     private var totalCount = 0
 
@@ -222,7 +223,12 @@ class ScanEngine(private val activity: Activity) {
                     AttackRecipes.applyPayload(intent, recipe)
                     activity.startActivity(intent)
                     // 前面に出た Activity が戻ってこない場合の保険（HOME 経由で自アプリへ戻す）。
+                    handler.removeCallbacks(backPress)
+                    handler.removeCallbacks(activityWatchdog)
+                    watchdogPair = pair
                     handler.postDelayed(backPress, TIMEOUT_MS)
+                    // クラッシュ後にターゲットが再起動して再び前面に来るケースを拾う。
+                    handler.postDelayed(activityWatchdog, TIMEOUT_MS + 500)
                 }
 
                 ComponentKind.SERVICE -> {
@@ -403,6 +409,8 @@ class ScanEngine(private val activity: Activity) {
     private fun finishRun() {
         scanning = false
         bursting = false
+        watchdogPair = null
+        handler.removeCallbacks(activityWatchdog)
         onComplete?.invoke(results.toList())
     }
 
@@ -537,6 +545,23 @@ class ScanEngine(private val activity: Activity) {
         CrashDetectorService.goHomeAndReturn()
     }
 
+    /**
+     * Activity テスト中、対象が前面に残っている間は定期的に HOME→LoneFuzz を試す。
+     * 対象がクラッシュ後に再起動して再び前面に来るケースでも、走査が取り残されない。
+     */
+    private val activityWatchdog = object : Runnable {
+        override fun run() {
+            if (!scanning) return
+            val pair = current ?: return
+            if (pair != watchdogPair) return
+            if (pair.first.kind != ComponentKind.ACTIVITY) return
+            if (CrashDetectorService.foregroundPackage() == pair.first.packageName) {
+                CrashDetectorService.goHomeAndReturn()
+            }
+            handler.postDelayed(this, 1_000L)
+        }
+    }
+
     private fun reportProgress() {
         val done = results.size
         val hits = results.count { it.hit }
@@ -548,6 +573,7 @@ class ScanEngine(private val activity: Activity) {
         bursting = false
         handler.removeCallbacksAndMessages(null)
         current = null
+        watchdogPair = null
         queue.clear()
         burstMisses.clear()
     }
