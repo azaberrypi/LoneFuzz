@@ -288,7 +288,7 @@ class ScanEngine(private val activity: Activity) {
      *
      * 対象 Provider のプロセスが死ぬと、query したクライアントプロセスも
      * DEPENDENCY DIED（reason=12）で殺される。本体から撃つと LoneFuzz 自身が落ちて
-     * 観測できないため、隔離したプローブに投げる。判定は本体が対象パッケージの
+     * 観測できないため、専用の `:probe` プロセスのプローブに投げる。判定は本体が対象パッケージの
      * 終了理由で行う（query が返す例外自体は HIT にしない）。
      */
     private fun fireProvider(comp: TargetComponent) {

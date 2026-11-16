@@ -11,7 +11,7 @@ import android.os.Looper
  *
  * Provider のプロセスが死ぬと、その Provider に query した *クライアント側プロセス* も
  * DEPENDENCY DIED（ApplicationExitInfo reason=12）で殺される。本体プロセスから撃つと
- * LoneFuzz 自身が落ちて観測できないため、`:probe` プロセスに隔離する。
+ * LoneFuzz 自身が落ちて観測できないため、`:probe` プロセスで実行する（本体を道連れにしない）。
  * 本体はこのサービスの生死に関係なく、対象パッケージの終了理由を DUMP で観測する。
  */
 class ProviderProbeService : Service() {

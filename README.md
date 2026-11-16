@@ -58,7 +58,7 @@ LoneFuzz, so a target that reads the extra throws `BadParcelableException`.
 
 All recipes except FGS 5s use the normal launch API for the target kind: Activity
 `startActivity`, Receiver `sendBroadcast`, Service `startService`, Provider a
-`ContentResolver` query from the isolated `:probe` process. A Provider crash can take its
+`ContentResolver` query from the dedicated `:probe` process. A Provider crash can take its
 calling process down too, so the query runs in the expendable `:probe` process. FGS 5s is
 the exception: it targets Services and uses `startForegroundService`. The 5-second rule is
 part of that recipe's effect, not a different thing being sent.

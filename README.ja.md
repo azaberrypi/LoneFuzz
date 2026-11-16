@@ -58,7 +58,7 @@ BadParcelable は LoneFuzz にしかないクラス名を extra に入れ、相�
 
 FGS 5秒以外は、対象の種別に応じた通常の起動 API を使います。Activity は
 `startActivity`、Receiver は `sendBroadcast`、Service は `startService`、Provider は
-隔離した `:probe` プロセスからの `ContentResolver` query です。Provider のクラッシュは
+専用の `:probe` プロセスからの `ContentResolver` query です。Provider のクラッシュは
 呼び出し側も道連れにするため、query は使い捨ての `:probe` プロセスから行います。
 FGS 5秒だけは Service を `startForegroundService` で起動する例外で、5秒ルールは
 「送るもの」ではなく、その起動方法の結果として起きます。
