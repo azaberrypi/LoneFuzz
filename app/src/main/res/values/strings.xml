@@ -5,6 +5,7 @@
     <string name="lang_en_desc">English</string>
     <string name="toast_copied">結果をコピーしました</string>
 
+    <string name="btn_deselect_all">チェックを全て外す</string>
     <string name="btn_refresh">一覧を更新</string>
     <string name="label_recipes">アタックレシピ</string>
     <string name="app_summary">%1$s  選択 %2$d/%3$d</string>

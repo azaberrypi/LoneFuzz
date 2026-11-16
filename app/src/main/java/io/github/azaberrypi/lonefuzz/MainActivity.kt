@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private lateinit var btnScan: Button
     private lateinit var btnBurst: Button
     private lateinit var btnShot: Button
+    private lateinit var btnDeselectAll: Button
     private lateinit var langJa: TextView
     private lateinit var langEn: TextView
     private lateinit var langIndicator: View
@@ -176,6 +177,10 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         searchBox.doAfterTextChanged { applyFilter() }
 
         findViewById<Button>(R.id.btnRefresh).setOnClickListener { enumerate() }
+        btnDeselectAll = findViewById(R.id.btnDeselectAll)
+        btnDeselectAll.setOnClickListener {
+            adapter.setAllSelected(false)
+        }
 
         btnScan.setOnClickListener { toggleScan() }
         btnBurst.setOnClickListener { toggleBurst() }
@@ -777,6 +782,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         // SHOT は「1コンポーネント × 1レシピ」のときだけ。走査中も押せない。
         val shotReady = selectedComponents().size == 1 && selectedRecipes().size == 1
         btnShot.isEnabled = !scanEngine.scanning && shotReady
+        btnDeselectAll.isEnabled = selectedComponents().isNotEmpty()
     }
 
     private fun enumerate() {

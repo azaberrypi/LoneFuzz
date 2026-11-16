@@ -116,14 +116,31 @@
         android:layout_weight="1"
         android:scrollbars="vertical" />
 
-    <Button
-        android:id="@+id/btnRefresh"
-        style="?attr/materialButtonOutlinedStyle"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="@string/btn_refresh"
-        android:textSize="12sp" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnRefresh"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/btn_refresh"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnDeselectAll"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="@string/btn_deselect_all"
+            android:textSize="12sp" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/statusRow"
