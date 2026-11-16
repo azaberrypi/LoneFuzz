@@ -46,7 +46,7 @@ means the Intent carries no action, data, or extras beyond that component.
 | Empty Intent | An explicit Intent with no action, data, or extras | NullPointerException (where a required key's value is used directly) |
 | Type mismatch | An Intent whose extras put strings in number-like keys and arrays in string-like keys | ClassCastException, etc. |
 | Huge int / negative | An Intent with extreme values in common keys: `Int.MIN_VALUE`, `Int.MAX_VALUE` for `count`/`size`, `-1` for `length` | ArrayIndexOutOfBounds / broken size arithmetic |
-| TooLarge (off by default, heavy) | An Intent with a 2 MB byte array under the `payload` key (exceeds the ~1 MB Binder transaction limit) | TransactionTooLargeException |
+| TooLarge | An Intent with a 2 MB byte array under the `payload` key (exceeds the ~1 MB Binder transaction limit) | TransactionTooLargeException |
 | Invalid URI | An Intent with a nonexistent `content://` or `file://` URI in `data` | FileNotFoundException, etc. |
 | BadParcelable | An Intent with a custom Parcelable class (absent from the target process) in every common extras key | BadParcelableException |
 | FGS 5-second rule | A bare Service Intent with no action, data, or extras (only when the target component is a Service) | The Service is launched with `startForegroundService`; if `startForeground()` is not called within 5 seconds, the system raises `RemoteServiceException` about 30 seconds later (no crash dialog) |
