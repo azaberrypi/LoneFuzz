@@ -33,28 +33,39 @@ Android 11 以降は他アプリの情報取得が制限されているため、
 
 ### 2. Payloads
 
-未処理例外を誘発しやすい入力の「型」をまとめています。exported コンポーネントが
+未処理例外を誘発しやすい、壊れた入力の「型」をまとめています。exported コンポーネントが
 「呼び出し側は正しい入力（extras / data）を必ず付けてくる」と暗黙に仮定している箇所を突きます。
 
-| レシピ | 送るもの | 誘発する例外・現象 |
+Intent には key-value の `Bundle` が付いており、これを **extras** と呼びます。以下のレシピは
+主にその中身を壊します。対象コンポーネントは明示したままで、「extras 無し」は
+**action / data / extras を付けない**という意味です。
+
+| レシピ | ペイロード（Intent に入れるもの） | 誘発する例外・現象 |
 |---|---|---|
-| 空 Intent | extras 無しの素の Intent で発火 | NullPointerException（必須キーの取り出し結果にそのままアクセスしている箇所） |
-| 型不一致 | 文字列を期待しがちなキーに文字列、数値を期待しがちなキーに配列を入れる | ClassCastException 等 |
-| 巨大 int / 負値 | 共通キーに `Int.MIN_VALUE`、`count`/`size` に `Int.MAX_VALUE`、`length` に `-1` など極端な値を入れる | ArrayIndexOutOfBounds / サイズ計算の破綻 |
-| TooLarge（既定オフ・重い） | `payload` キーに 2MB の byte 配列（Binder トランザクション上限 ≒1MB を超過） | TransactionTooLargeException |
-| 不正 URI | `data` に存在しない content:// / file:// の URI を入れる | FileNotFoundException 等 |
-| BadParcelable | 共通キー全てに、相手プロセスに存在しない自作 Parcelable を入れる（相手が extras を読み込んだ瞬間に発火） | BadParcelableException |
-| FGS 5秒ルール | Service を extras 無しで `startForegroundService` 起動（Service のみ対象） | 5秒以内に `startForeground()` されず、約30秒後に `RemoteServiceException`（クラッシュダイアログは出ない） |
+| 空 Intent | action / data / extras を持たない、明示コンポーネントだけの Intent | NullPointerException（必須キーの取り出し結果にそのままアクセスしている箇所） |
+| 型不一致 | 数値用キーに文字列、文字列用キーに配列を入れた extras を持つ Intent | ClassCastException 等 |
+| 巨大 int / 負値 | 共通キーに `Int.MIN_VALUE`、`count`/`size` に `Int.MAX_VALUE`、`length` に `-1` など極端な値を入れた Intent | ArrayIndexOutOfBounds / サイズ計算の破綻 |
+| TooLarge（既定オフ・重い） | `payload` キーに 2MB の byte 配列を入れた Intent（Binder トランザクション上限 ≒1MB を超過） | TransactionTooLargeException |
+| 不正 URI | `data` に存在しない content:// / file:// の URI を入れた Intent | FileNotFoundException 等 |
+| BadParcelable | 共通キー全てに、相手プロセスに存在しない自作 Parcelable クラスを入れた Intent | BadParcelableException |
+| FGS 5秒ルール | action / data / extras を持たない、Service を対象にした素の Intent（Service のみ） | `startForegroundService` で起動。5秒以内に `startForeground()` されないと約30秒後に `RemoteServiceException`（クラッシュダイアログは出ない） |
+
+**Parcelable** は、Intent / Bundle に入れて別プロセスで復元するための Android の
+シリアライズ interface です。受け取る側にそのクラスが無いと復元に失敗します。
+BadParcelable は LoneFuzz にしかないクラス名を extra に入れ、相手が extra を読んだ瞬間に
+`BadParcelableException` を起こすレシピです。
+
+FGS 5秒以外は、対象の種別に応じた通常の起動 API を使います。Activity は
+`startActivity`、Receiver は `sendBroadcast`、Service は `startService`、Provider は
+隔離した `:probe` プロセスからの `ContentResolver` query です。Provider のクラッシュは
+呼び出し側も道連れにするため、query は使い捨ての `:probe` プロセスから行います。
+FGS 5秒だけは Service を `startForegroundService` で起動する例外で、5秒ルールは
+「送るもの」ではなく、その起動方法の結果として起きます。
 
 > 文字列／数値キーへの入れ替えは「どちらを読んでも型アンマッチになる」よう双方向に仕込みます。
 > 共通キーは汎用 extras 名のリスト（id, url, uri, data, key, value, name, title, type,
 > index, position, count, token, json, payload, extra, message）。
 > BadParcelable は相手が extras を読むまで発火しないため、的中率は実装依存です。
-
-発火方法はコンポーネント種別ごとに、Activity は `startActivity`、Receiver は
-`sendBroadcast`、Service は `startService` / `startForegroundService`、
-Provider は `ContentResolver` 経由の query を**隔離した `:probe` プロセス**から行います
-（Provider が落ちると query した側のプロセスも道連れになるため、probe を犠牲にします）。
 
 ### 3. Detection
 

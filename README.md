@@ -34,29 +34,39 @@ declares the "query all packages" permission for enumeration and explicit launch
 
 ### 2. Payloads
 
-A collection of input "shapes" that tend to trigger unhandled exceptions. It targets
-places where an exported component implicitly assumes "the caller will always supply
-correct input (extras / data)."
+A collection of malformed input shapes that tend to trigger unhandled exceptions. It targets
+exported components that implicitly assume "the caller will always supply correct input".
 
-| Recipe | What it sends | Exception / effect induced |
+An Intent carries a `Bundle` of key-value data called **extras**. Most recipes below put
+malformed values into that Bundle. The target component is still set explicitly; "no extras"
+means the Intent carries no action, data, or extras beyond that component.
+
+| Recipe | Payload (what goes into the Intent) | Exception / effect |
 |---|---|---|
-| Empty Intent | Fires a bare Intent with no extras | NullPointerException (where a required key's value is used directly) |
-| Type mismatch | Puts a string into keys likely expecting numbers, an array into keys likely expecting strings | ClassCastException, etc. |
-| Huge int / negative | Puts extreme values such as `Int.MIN_VALUE` into common keys, `Int.MAX_VALUE` into `count`/`size`, `-1` into `length` | ArrayIndexOutOfBounds / broken size arithmetic |
-| TooLarge (off by default, heavy) | Puts a 2 MB byte array under the `payload` key (exceeds the Binder transaction limit of ≈1 MB) | TransactionTooLargeException |
-| Invalid URI | Puts a nonexistent content:// / file:// URI into `data` | FileNotFoundException, etc. |
-| BadParcelable | Puts a custom Parcelable absent from the target process into every common key (fires the moment the target reads extras) | BadParcelableException |
-| FGS 5-second rule | Starts a Service with `startForegroundService` and no extras (Service only) | `RemoteServiceException` about 30 s later if `startForeground()` isn't called within 5 seconds (no crash dialog) |
+| Empty Intent | An explicit Intent with no action, data, or extras | NullPointerException (where a required key's value is used directly) |
+| Type mismatch | An Intent whose extras put strings in number-like keys and arrays in string-like keys | ClassCastException, etc. |
+| Huge int / negative | An Intent with extreme values in common keys: `Int.MIN_VALUE`, `Int.MAX_VALUE` for `count`/`size`, `-1` for `length` | ArrayIndexOutOfBounds / broken size arithmetic |
+| TooLarge (off by default, heavy) | An Intent with a 2 MB byte array under the `payload` key (exceeds the ~1 MB Binder transaction limit) | TransactionTooLargeException |
+| Invalid URI | An Intent with a nonexistent `content://` or `file://` URI in `data` | FileNotFoundException, etc. |
+| BadParcelable | An Intent with a custom Parcelable class (absent from the target process) in every common extras key | BadParcelableException |
+| FGS 5-second rule | A bare Service Intent with no action, data, or extras (only when the target component is a Service) | The Service is launched with `startForegroundService`; if `startForeground()` is not called within 5 seconds, the system raises `RemoteServiceException` about 30 seconds later (no crash dialog) |
+
+**Parcelable** is Android's interface for serializing an object into an Intent/Bundle so
+another process can reconstruct it. The receiving process must contain the class; otherwise
+unmarshalling fails. BadParcelable exploits that: it names a class that exists only in
+LoneFuzz, so a target that reads the extra throws `BadParcelableException`.
+
+All recipes except FGS 5s use the normal launch API for the target kind: Activity
+`startActivity`, Receiver `sendBroadcast`, Service `startService`, Provider a
+`ContentResolver` query from the isolated `:probe` process. A Provider crash can take its
+calling process down too, so the query runs in the expendable `:probe` process. FGS 5s is
+the exception: it targets Services and uses `startForegroundService`. The 5-second rule is
+part of that recipe's effect, not a different thing being sent.
 
 > String/number swaps are planted bidirectionally so that reading either way yields a
 > type mismatch. The common keys are a list of generic extras names (id, url, uri, data,
 > key, value, name, title, type, index, position, count, token, json, payload, extra, message).
 > BadParcelable only fires once the target reads extras, so its hit rate is implementation-dependent.
-
-The firing method depends on the component kind: Activity uses `startActivity`, Receiver
-uses `sendBroadcast`, Service uses `startService` / `startForegroundService`, and Provider
-uses `query` via `ContentResolver` from an isolated `:probe` process (a provider crash takes
-its client process down too, so the probe is the expendable part).
 
 ### 3. Detection
 
