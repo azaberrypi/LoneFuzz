@@ -14,7 +14,7 @@ import io.github.azaberrypi.lonefuzz.model.TargetComponent
  *
  * 注意: クラッシュは「相手プロセス」で非同期に起きるため、こちらの startXxx() は
  * 多くの場合に例外を投げない。呼び出し側で捕捉できる例外
- * （TransactionTooLarge / Security / ActivityNotFound 等）だけがローカルに出る。
+ * （SecurityException / ActivityNotFoundException 等）だけがローカルに出る。
  */
 class AttackEngine(context: Context) {
 

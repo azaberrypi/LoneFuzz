@@ -37,7 +37,7 @@ class HitStore(context: Context) {
         val raw = prefs.getString(KEY, null) ?: return emptyList()
         return try {
             val arr = JSONArray(raw)
-            (0 until arr.length()).map { i ->
+            val entries = (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 Entry(
                     o.getString("pkg"), o.optString("label"), o.optString("ver"),
@@ -46,7 +46,13 @@ class HitStore(context: Context) {
                         .getOrDefault(ComponentKind.ACTIVITY),
                     authority = o.optString("auth", "").ifEmpty { null },
                 )
-            }.filter { it.confidence == ScanEngine.HitConfidence.CONFIRMED.name }
+            }
+            val valid = entries.filter {
+                it.confidence == ScanEngine.HitConfidence.CONFIRMED.name &&
+                    runCatching { RecipeType.valueOf(it.recipeName) }.isSuccess
+            }
+            if (valid.size != entries.size) save(valid)
+            valid
         } catch (_: Throwable) {
             emptyList()
         }

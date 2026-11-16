@@ -20,7 +20,6 @@
     <string name="recipe_empty">空Intent</string>
     <string name="recipe_type_mismatch">型不一致</string>
     <string name="recipe_huge_numeric">巨大int/負値</string>
-    <string name="recipe_too_large">TooLarge</string>
     <string name="recipe_bad_uri">不正URI</string>
     <string name="recipe_bad_parcelable">BadParcelable</string>
     <string name="recipe_fgs_5s">FGS 5秒</string>

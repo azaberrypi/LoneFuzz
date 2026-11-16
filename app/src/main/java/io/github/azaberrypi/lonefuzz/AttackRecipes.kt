@@ -19,9 +19,6 @@ enum class RecipeType(val label: String, val labelRes: Int, val defaultOn: Boole
     /** 極端な int/long（MIN/MAX・負値）→ ArrayIndexOutOfBounds / サイズ計算破綻。 */
     HUGE_NUMERIC("巨大int/負値", R.string.recipe_huge_numeric, false),
 
-    /** 大きすぎる extra（巨大 byte[]）→ Binder の TransactionTooLargeException。 */
-    TRANSACTION_TOO_LARGE("TooLarge", R.string.recipe_too_large, false),
-
     /** null/存在しない URI → Provider の FileNotFoundException 等が未処理でクラッシュ。 */
     BAD_URI("不正URI", R.string.recipe_bad_uri, false),
 
@@ -66,11 +63,6 @@ object AttackRecipes {
                 intent.putExtra("length", -1)
                 intent.putExtra("index", Int.MAX_VALUE)
                 intent.putExtra("offset", Long.MIN_VALUE)
-            }
-
-            RecipeType.TRANSACTION_TOO_LARGE -> {
-                // 2MB。Binder のトランザクション上限(約1MB)を超え、呼び出し側で例外になることも。
-                intent.putExtra("payload", ByteArray(2 * 1024 * 1024))
             }
 
             RecipeType.BAD_URI -> {

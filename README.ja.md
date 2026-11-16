@@ -7,8 +7,10 @@
 </p>
 
 Android アプリの **exported コンポーネント**（他アプリから起動・呼び出しできる
-Activity / Service / BroadcastReceiver / ContentProvider）に、入力検証漏れを突く
-Intent を送り込み、**ローカル DoS（クラッシュ / ANR）** を再現可能な形で実証する、
+Activity / Service / BroadcastReceiver / ContentProvider）に対して、
+Activity / Service / BroadcastReceiver には Intent を、ContentProvider には
+`ContentResolver` 経由の URI アクセスを行い、入力検証漏れを突いて
+**ローカル DoS（クラッシュ / ANR）** を再現可能な形で実証する、
 **オンデバイス完結**のツールです。
 
 PC やエミュレータ、root は不要。端末にサイドロードした APK 1 本で
@@ -45,7 +47,6 @@ Intent には key-value の `Bundle` が付いており、これを **extras** �
 | 空 Intent | action / data / extras を持たない、明示コンポーネントだけの Intent | NullPointerException（必須キーの取り出し結果にそのままアクセスしている箇所） |
 | 型不一致 | 数値用キーに文字列、文字列用キーに配列を入れた extras を持つ Intent | ClassCastException 等 |
 | 巨大 int / 負値 | 共通キーに `Int.MIN_VALUE`、`count`/`size` に `Int.MAX_VALUE`、`length` に `-1` など極端な値を入れた Intent | ArrayIndexOutOfBounds / サイズ計算の破綻 |
-| TooLarge | `payload` キーに 2MB の byte 配列を入れた Intent（Binder トランザクション上限 ≒1MB を超過） | TransactionTooLargeException |
 | 不正 URI | `data` に存在しない content:// / file:// の URI を入れた Intent | FileNotFoundException 等 |
 | BadParcelable | 共通キー全てに、相手プロセスに存在しない自作 Parcelable クラスを入れた Intent | BadParcelableException |
 | FGS 5秒ルール | action / data / extras を持たない、Service を対象にした素の Intent（Service のみ） | `startForegroundService` で起動。5秒以内に `startForeground()` されないと約30秒後に `RemoteServiceException`（クラッシュダイアログは出ない） |
