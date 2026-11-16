@@ -742,6 +742,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(getColor(R.color.accent), getColor(R.color.surface_high)),
         )
+        val chipPad = resources.displayMetrics.density * 12f
         for (type in RecipeType.entries) {
             val chip = Chip(this).apply {
                 text = getString(type.labelRes)
@@ -749,6 +750,12 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
                 isChecked = type.defaultOn
                 isCheckedIconVisible = false
                 textSize = 12f
+                gravity = Gravity.CENTER
+                textAlignment = View.TEXT_ALIGNMENT_CENTER
+                chipStartPadding = chipPad
+                chipEndPadding = chipPad
+                textStartPadding = 0f
+                textEndPadding = 0f
                 chipStrokeWidth = strokePx
                 chipStrokeColor = ColorStateList.valueOf(getColor(R.color.accent_dim))
                 setTextColor(chipTextColors)
