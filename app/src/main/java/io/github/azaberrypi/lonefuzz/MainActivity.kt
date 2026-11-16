@@ -8,9 +8,12 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.view.Gravity
 import android.os.SystemClock
+import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.Handler
@@ -38,6 +41,7 @@ import io.github.azaberrypi.lonefuzz.model.ComponentKind
 import io.github.azaberrypi.lonefuzz.model.TargetApp
 import io.github.azaberrypi.lonefuzz.model.TargetComponent
 import io.github.azaberrypi.lonefuzz.ui.AppListAdapter
+import io.github.azaberrypi.lonefuzz.ui.ArmoryAdapter
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -63,6 +67,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
     private lateinit var btnBurst: Button
     private lateinit var btnShot: Button
     private lateinit var btnDeselectAll: Button
+    private lateinit var btnArmory: Button
     private lateinit var langJa: TextView
     private lateinit var langEn: TextView
     private lateinit var langIndicator: View
@@ -101,6 +106,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private var runStartedAt = 0L
     private var runTargetPackages: Set<String> = emptySet()
+    private var armoryDialog: Dialog? = null
     private val sessionConfirmedKeys = mutableSetOf<String>()
     private val sessionSuspectedKeys = mutableSetOf<String>()
     private val sessionHitDetails = LinkedHashMap<String, LinkedHashMap<String, HitDetail>>()
@@ -181,6 +187,9 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         btnDeselectAll.setOnClickListener {
             adapter.setAllSelected(false)
         }
+        btnArmory = findViewById(R.id.btnArmory)
+        btnArmory.setOnClickListener { showArmory() }
+        TooltipCompat.setTooltipText(btnArmory, getString(R.string.tip_armory))
 
         btnScan.setOnClickListener { toggleScan() }
         btnBurst.setOnClickListener { toggleBurst() }
@@ -783,6 +792,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         val shotReady = selectedComponents().size == 1 && selectedRecipes().size == 1
         btnShot.isEnabled = !scanEngine.scanning && shotReady
         btnDeselectAll.isEnabled = selectedComponents().isNotEmpty()
+        btnArmory.isEnabled = hitStore.count() > 0
     }
 
     private fun enumerate() {
@@ -1043,7 +1053,125 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun loadArmory(): List<HitStore.Entry> =
+        hitStore.load().sortedWith(
+            compareBy({ it.appLabel.lowercase() }, { it.className }, { it.recipeName }),
+        )
+
+    private fun showArmory() {
+        if (armoryDialog?.isShowing == true) return
+        val dialog = Dialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_armory, null)
+        dialog.setContentView(view)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        val list = view.findViewById<RecyclerView>(R.id.armoryList)
+        val empty = view.findViewById<TextView>(R.id.armoryEmpty)
+        val title = view.findViewById<TextView>(R.id.armoryTitle)
+        list.layoutManager = LinearLayoutManager(this)
+
+        var armoryAdapter: ArmoryAdapter? = null
+        fun reload() {
+            val items = loadArmory()
+            armoryAdapter?.submit(items)
+            title.text = getString(R.string.armory_title, items.size)
+            empty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        val ia = ArmoryAdapter(
+            onShot = { entry -> fireArmoryShot(entry, dialog) },
+            onBurst = { entry -> startArmoryBurst(entry, dialog) },
+            onDelete = { entry ->
+                hitStore.remove(entry.packageName, entry.className, entry.recipeName)
+                val key = "${entry.packageName}|${entry.className}"
+                val remaining = hitStore.storedFor(entry.packageName)
+                    .any { it.className == entry.className }
+                if (!remaining) {
+                    sessionConfirmedKeys.remove(key)
+                    sessionSuspectedKeys.remove(key)
+                    sessionHitDetails.remove(key)
+                    adapter.setHitKeys(
+                        sessionConfirmedKeys.toSet(),
+                        sessionSuspectedKeys.toSet(),
+                    )
+                }
+                reload()
+                refreshRunButtons()
+            },
+        )
+        armoryAdapter = ia
+        list.adapter = ia
+        reload()
+
+        view.findViewById<TextView>(R.id.armoryClose).setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { armoryDialog = null }
+        armoryDialog = dialog
+        dialog.show()
+        val dm = resources.displayMetrics
+        dialog.window?.setLayout(
+            (dm.widthPixels * 0.94f).toInt(),
+            (dm.heightPixels * 0.88f).toInt(),
+        )
+    }
+
+    private fun fireArmoryShot(entry: HitStore.Entry, dialog: Dialog) {
+        if (scanEngine.scanning || scanEngine.bursting) {
+            Toast.makeText(this, getString(R.string.log_shot_blocked), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val recipe = runCatching { RecipeType.valueOf(entry.recipeName) }.getOrNull() ?: return
+        val target = TargetComponent(
+            packageName = entry.packageName,
+            className = entry.className,
+            kind = entry.kind,
+            authority = entry.authority,
+            appLabel = entry.appLabel,
+            appVersion = entry.appVersion,
+        )
+        engine.fireShot(target, recipe, this)
+    }
+
+    private fun startArmoryBurst(entry: HitStore.Entry, dialog: Dialog) {
+        if (scanEngine.scanning || scanEngine.bursting) {
+            Toast.makeText(this, getString(R.string.log_shot_blocked), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (entry.kind == ComponentKind.ACTIVITY) {
+            val msg = getString(R.string.log_armory_activity_burst_blocked)
+            appendLog(msg)
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val targets = HitStore.asResults(listOf(entry))
+        if (targets.isEmpty()) return
+        val t = LogText(this, LogText.currentLocale(this))
+        runLogText = t
+        if (!CrashDetectorService.isRunning) {
+            appendLog(t.get(R.string.log_need_a11y_burst))
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
+        dialog.dismiss()
+        hideIme()
+        lastScanHits = targets
+        burstCycle = 0
+        appendLog(t.runHeader())
+        appendLog(t.get(R.string.log_burst_start, targets.size, 1))
+        btnBurst.text = getString(R.string.btn_burst_stop)
+        setLogExpanded(true)
+        hideRunResult(immediate = true)
+        runStartedAt = SystemClock.elapsedRealtime()
+        startFgs(AttackForegroundService.MODE_BURST, t)
+        AttackControl.setStopListener {
+            mainHandler.post { if (scanEngine.bursting) stopBurst() }
+        }
+        scanEngine.startBurst(targets, t)
+        refreshRunButtons()
+    }
+
     override fun onDestroy() {
+        armoryDialog?.dismiss()
+        armoryDialog = null
         hideRunResult(immediate = true)
         AttackControl.setStopListener(null)
         scanEngine.stop()

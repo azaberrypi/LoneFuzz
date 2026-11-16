@@ -6,6 +6,14 @@
     <string name="toast_copied">結果をコピーしました</string>
 
     <string name="btn_deselect_all">チェックを全て外す</string>
+    <string name="btn_armory">HIT一覧</string>
+    <string name="tip_armory">HIT一覧</string>
+    <string name="armory_title">HIT一覧 (%1$d)</string>
+    <string name="armory_empty">HIT一覧は空です。</string>
+    <string name="armory_shot">SHOT</string>
+    <string name="armory_burst">BURST</string>
+    <string name="armory_delete">削除</string>
+    <string name="armory_close">閉じる</string>
     <string name="btn_refresh">一覧を更新</string>
     <string name="label_recipes">アタックレシピ</string>
     <string name="app_summary">%1$s  選択 %2$d/%3$d</string>
@@ -61,7 +69,7 @@
     <string name="run_result_meta_time">%1$s</string>
     <string name="log_enumerating">アプリ列挙中...</string>
     <string name="log_enumerated">列挙完了: %1$d アプリに exported コンポーネントあり</string>
-    <string name="log_armory_count">武器庫: 保存済みHIT %1$d 件（対象を選び「BURST」で spray 無しに再利用可）</string>
+    <string name="log_armory_count">HIT一覧: 保存済みHIT %1$d 件（対象を選び「BURST」で spray 無しに再利用可）</string>
     <string name="log_spray_start">=== %1$s開始: %2$d アプリ / %3$d A, %4$d S, %5$d R, %6$d P × %7$d レシピ ===</string>
     <string name="log_dump_warning">※ Activity 以外は DUMP 未付与だとダイアログ観測のみで取りこぼしがあります（確定には DUMP を付与）。</string>
     <string name="log_need_a11y_spray">sprayにはユーザー補助の有効化が必要です。</string>
@@ -71,10 +79,10 @@
     <string name="log_spray_abort">=== spray中断 ===</string>
     <string name="log_burst_stop">=== BURST 停止 ===</string>
     <string name="log_cycle_complete">--- 連射サイクル %1$d 完了（止めるまで継続）---</string>
-    <string name="log_stale">=== 効かなくなった: %1$s / %2$s [%3$s] を武器庫から無効化（連射は継続。再探索は手動 spray で） ===</string>
+    <string name="log_stale">=== 効かなくなった: %1$s / %2$s [%3$s] をHIT一覧から無効化（連射は継続。再探索は手動 spray で） ===</string>
     <string name="log_burst_need_target">対象を選択し、spray するか保存済みHITのある対象を選んでください。</string>
     <string name="log_burst_no_hits">選択対象に保存済みHITがありません。先にsprayを実行してください。</string>
-    <string name="log_burst_loaded">武器庫から %1$d 件のHITを読み込みました（最終確認版を保持・版では無効化しません）。</string>
+    <string name="log_burst_loaded">HIT一覧から %1$d 件のHITを読み込みました（最終確認版を保持・版では無効化しません）。</string>
     <string name="log_need_a11y_burst">BURST にはユーザー補助の有効化が必要です。</string>
     <string name="log_burst_activity_only">BURST できる HIT がありません（Activity HIT は BURST 対象外。SHOT/SPRAY で確認してください）。</string>
     <string name="log_burst_skip_activity">BURST: Activity HIT %1$d 件を除外（Service/Receiver/Provider のみ連射）。</string>
@@ -95,6 +103,7 @@
     <string name="log_result">[結果] %1$s / %2$s [%3$s] → %4$s</string>
     <string name="mark_confirmed">確定(クラッシュ死)</string>
     <string name="mark_suspected">疑い(即戻り/UsageStats)</string>
+    <string name="log_armory_activity_burst_blocked">Activity HIT は BURST 対象外です（SHOT/SPRAY で確認してください）。</string>
     <string name="log_shot_blocked">spray/BURST 実行中は SHOT できません。先に停止してください。</string>
     <string name="log_shot_select_one">SHOT はコンポーネント1つ・レシピ1つを選択したときだけ撃てます。</string>
     <string name="log_shot_not_applicable">SHOT: %1$s は %2$s には使えません。</string>
