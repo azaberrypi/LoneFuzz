@@ -6,13 +6,13 @@
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="LoneFuzz icon">
 </p>
 
-Android アプリの **exported コンポーネント**（他アプリから起動・呼び出しできる
-Activity / Service / BroadcastReceiver / ContentProvider）に対して、
-Activity / Service / BroadcastReceiver には Intent を、ContentProvider には
-`ContentResolver` 経由の URI アクセスを行い、入力検証漏れを突いて
-**ローカル DoS（クラッシュ / ANR）** を再現可能な形で実証する、
-**オンデバイス完結**のツールです。
+LoneFuzz は、他の Android アプリに壊れた入力データを送ることで、
+**ローカル DoS（クラッシュ / ANR）** を再現可能な形で実証する
+**オンデバイス完結**のツールです。狙うのは、他アプリから呼び出せる入口
+（**exported コンポーネント**）における入力検証漏れです。
 
+具体的には、Activity / Service / BroadcastReceiver には細工した Intent を送り、
+ContentProvider には `ContentResolver` 経由の URI でアクセスします。
 PC やエミュレータ、root は不要。端末にサイドロードした APK 1 本で
 「列挙 → 探索 → 検知 → 連射」までを完結させます。
 

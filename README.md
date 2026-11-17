@@ -7,13 +7,14 @@
 </p>
 
 LoneFuzz is an **on-device** tool that reproducibly demonstrates **local DoS
-(crash / ANR)** against the **exported components** of Android apps (Activities,
-Services, and BroadcastReceivers via crafted Intents; ContentProviders via
-`ContentResolver` URIs) that other apps are allowed to launch or call, exploiting
-missing input validation.
+(crash / ANR)** in other Android apps by sending malformed input to their
+**exported components**—the entry points other apps are allowed to call. The
+focus is missing input validation.
 
-No PC, emulator, or root required. A single sideloaded APK takes you through
-"enumerate → explore → detect → burst" entirely on the device.
+Concretely, it sends crafted Intents to Activities, Services, and
+BroadcastReceivers, and accesses ContentProviders through `ContentResolver`
+URIs. No PC, emulator, or root required: a single sideloaded APK takes you
+through "enumerate → explore → detect → burst" entirely on the device.
 
 > ## ⚠️
 > - The author assumes no responsibility for any damages arising from the use of this tool.
