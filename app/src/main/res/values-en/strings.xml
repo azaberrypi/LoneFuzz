@@ -41,7 +41,12 @@
     <string name="tip_shot">Send one Intent to the selected single component × single recipe (no detection; select exactly one of each)</string>
 
     <string name="detector_off">Detector OFF (tap to enable)</string>
-    <string name="dump_off">DUMP OFF (tap to grant)</string>
+    <string name="dump_off">DUMP OFF (tap for details)</string>
+    <string name="dump_dialog_title">DUMP permission (optional)</string>
+    <string name="dump_dialog_message">DUMP lets LoneFuzz read exit reasons from other apps and confirm crashes even when no dialog appears.\n\nIt is optional; without it, detection falls back to accessibility and may miss silent crashes. Run the following adb command once from a PC.</string>
+    <string name="dump_dialog_copy">Copy</string>
+    <string name="dump_dialog_close">Close</string>
+    <string name="toast_dump_copied">Command copied</string>
 
     <string name="label_log">▸ Log (tap to expand · long-press to copy results)</string>
     <string name="btn_clear_log">Clear</string>

@@ -13,8 +13,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.content.res.ColorStateList
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -205,13 +207,7 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
             }
         }
 
-        dumpStatus.setOnClickListener {
-            Toast.makeText(
-                this,
-                "adb shell pm grant $packageName android.permission.DUMP",
-                Toast.LENGTH_LONG,
-            ).show()
-        }
+        dumpStatus.setOnClickListener { showDumpInfo() }
 
         // ログは既定で閉。見出しタップで開閉、長押しで結果コピー（旧「結果コピー」ボタンを置換）
         val logToggle = findViewById<TextView>(R.id.logToggle)
@@ -713,10 +709,44 @@ class MainActivity : AppCompatActivity(), AttackEngine.Listener {
         ).any { it.resolveInfo?.serviceInfo?.packageName == packageName }
     }
 
+    private fun showDumpInfo() {
+        val command = "adb shell pm grant $packageName android.permission.DUMP"
+        val pad = dp(24)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, dp(8), pad, 0)
+        }
+        content.addView(TextView(this).apply {
+            text = getString(R.string.dump_dialog_message)
+        })
+        content.addView(TextView(this).apply {
+            text = command
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            val p = dp(12)
+            setPadding(p, p, p, p)
+            setBackgroundColor(0x22888888)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(12) })
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dump_dialog_title)
+            .setView(content)
+            .setPositiveButton(R.string.dump_dialog_copy) { _, _ ->
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("DUMP command", command))
+                Toast.makeText(this, getString(R.string.toast_dump_copied), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.dump_dialog_close, null)
+            .show()
+    }
+
     private fun updateDumpStatus() {
+        val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
         val on = CrashWatcher.hasDumpPermission(this)
-        dumpStatus.visibility = if (on) View.GONE else View.VISIBLE
-        if (!on) applyPill(dumpStatus)
+        dumpStatus.visibility = if (available && !on) View.VISIBLE else View.GONE
+        if (available && !on) applyPill(dumpStatus)
         updateStatusRowVisibility()
     }
 

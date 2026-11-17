@@ -41,7 +41,12 @@
     <string name="tip_shot">選択中の1コンポーネント × 1レシピに Intent を1回だけ送る（検知なし）</string>
 
     <string name="detector_off">検知 OFF（タップで有効化）</string>
-    <string name="dump_off">DUMP OFF（タップで付与）</string>
+    <string name="dump_off">DUMP OFF（タップで詳細）</string>
+    <string name="dump_dialog_title">DUMP 権限（任意）</string>
+    <string name="dump_dialog_message">DUMP を付与すると、他アプリの終了理由を読み、クラッシュダイアログが出ないケースでも確定検知できます。\n\n未付与でも動作しますが、検知精度は下がります。PC から一度だけ以下の adb コマンドを実行してください。</string>
+    <string name="dump_dialog_copy">コピー</string>
+    <string name="dump_dialog_close">閉じる</string>
+    <string name="toast_dump_copied">コマンドをコピーしました</string>
 
     <string name="label_log">▸ ログ（タップで開閉・長押しで結果コピー）</string>
     <string name="btn_clear_log">クリア</string>
